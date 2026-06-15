@@ -1,7 +1,6 @@
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use envtools_application::dto::{AddVariableRequest, CreateGroupRequest};
-use envtools_application::port::StateFileWriter;
 use envtools_application::use_case::disable_group::DisableGroupUseCase;
 use envtools_application::use_case::enable_group::EnableGroupUseCase;
 use envtools_application::use_case::export_import::{ExportData, ExportImportUseCase};

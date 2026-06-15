@@ -146,6 +146,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
+            src-tauri/target
           key: ${{ matrix.rust_target }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ matrix.rust_target }}-cargo-build-
 

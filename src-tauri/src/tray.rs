@@ -1,7 +1,7 @@
 use tauri::{
-    menu::{CheckMenuItem, Menu, MenuItem, Submenu},
+    menu::{CheckMenuItem, Menu, MenuItem},
     tray::TrayIconBuilder,
-    App, Manager,
+    App, Manager, Wry,
 };
 
 use envtools_application::use_case::disable_group::DisableGroupUseCase;
@@ -22,7 +22,7 @@ fn writer() -> FileStateWriter {
 pub fn setup_tray(app: &App) -> Result<(), Box<dyn std::error::Error>> {
     let menu = build_tray_menu(app)?;
 
-    let _tray = TrayIconBuilder::new()
+    let _tray = TrayIconBuilder::with_id("main")
         .menu(&menu)
         .tooltip("EnvTools - Environment Manager")
         .on_menu_event(move |app, event| {
@@ -40,7 +40,6 @@ pub fn setup_tray(app: &App) -> Result<(), Box<dyn std::error::Error>> {
                 return;
             }
 
-            // Group toggle: id format "toggle:<group_name>"
             if let Some(group_name) = id.strip_prefix("toggle:") {
                 let r = repo();
                 let w = writer();
@@ -55,7 +54,6 @@ pub fn setup_tray(app: &App) -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
 
-                // Rebuild menu to reflect new state
                 if let Ok(new_menu) = build_tray_menu(app) {
                     if let Some(tray) = app.tray_by_id("main") {
                         let _ = tray.set_menu(Some(new_menu));
@@ -63,19 +61,17 @@ pub fn setup_tray(app: &App) -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         })
-        .id("main")
         .build(app)?;
 
     Ok(())
 }
 
-fn build_tray_menu(app: &dyn Manager) -> Result<Menu<tauri::Wry>, Box<dyn std::error::Error>> {
+fn build_tray_menu(app: &impl Manager<Wry>) -> Result<Menu<Wry>, Box<dyn std::error::Error>> {
     let r = repo();
     let groups = r.find_all().unwrap_or_default();
 
     let menu = Menu::new(app)?;
 
-    // Group toggle items
     if groups.is_empty() {
         let empty_item = MenuItem::new(app, "No groups configured", false, None::<&str>)?;
         menu.append(&empty_item)?;
@@ -87,12 +83,12 @@ fn build_tray_menu(app: &dyn Manager) -> Result<Menu<tauri::Wry>, Box<dyn std::e
                 if group.is_active() { "ON" } else { "OFF" }
             );
             let id = format!("toggle:{}", group.name());
-            let item = CheckMenuItem::with_id(app, &id, &label, true, group.is_active(), None::<&str>)?;
+            let item =
+                CheckMenuItem::with_id(app, &id, &label, true, group.is_active(), None::<&str>)?;
             menu.append(&item)?;
         }
     }
 
-    // Separator + actions
     menu.append(&MenuItem::new(app, "", false, None::<&str>)?)?;
 
     let show_item = MenuItem::with_id(app, "show", "Open EnvTools", true, None::<&str>)?;
