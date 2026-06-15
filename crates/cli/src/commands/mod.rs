@@ -44,31 +44,24 @@ fn auto_inject_hooks(_config_dir: &Path) -> Vec<std::path::PathBuf> {
     let mut injected = Vec::new();
     let home = dirs::home_dir().unwrap_or_default();
 
-    // Bash
     let bashrc = home.join(".bashrc");
-    if bashrc.exists() {
-        if inject_hook_to_file(&bashrc, "bash").is_ok() {
-            injected.push(bashrc);
-        }
+    if bashrc.exists() && inject_hook_to_file(&bashrc, "bash").is_ok() {
+        injected.push(bashrc);
     }
 
-    // Zsh
     let zshrc = home.join(".zshrc");
-    if zshrc.exists() {
-        if inject_hook_to_file(&zshrc, "zsh").is_ok() {
-            injected.push(zshrc);
-        }
+    if zshrc.exists() && inject_hook_to_file(&zshrc, "zsh").is_ok() {
+        injected.push(zshrc);
     }
 
-    // Fish
     let fish_config = home.join(".config").join("fish").join("config.fish");
-    if fish_config.exists() || fish_config.parent().map(|p| p.exists()).unwrap_or(false) {
-        if inject_hook_to_file(&fish_config, "fish").is_ok() {
-            injected.push(fish_config);
-        }
+    let fish_dir_exists = fish_config.parent().map(|p| p.exists()).unwrap_or(false);
+    if (fish_config.exists() || fish_dir_exists)
+        && inject_hook_to_file(&fish_config, "fish").is_ok()
+    {
+        injected.push(fish_config);
     }
 
-    // PowerShell (Windows & cross-platform)
     if let Some(ps_profile) = get_powershell_profile() {
         if inject_hook_to_file(&ps_profile, "pwsh").is_ok() {
             injected.push(ps_profile);
@@ -152,10 +145,7 @@ pub fn group_list(repo: &dyn GroupRepository) -> Result<(), DomainError> {
         return Ok(());
     }
 
-    println!(
-        "{:<20} {:<8} {:<8} {}",
-        "NAME", "ACTIVE", "PRIO", "DESCRIPTION"
-    );
+    println!("{:<20} {:<8} {:<8} DESCRIPTION", "NAME", "ACTIVE", "PRIO");
     println!("{}", "-".repeat(60));
     for g in &groups {
         let status = if g.active { "[ON]" } else { "[OFF]" };
