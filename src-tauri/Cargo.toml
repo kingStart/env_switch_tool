@@ -1,0 +1,21 @@
+[package]
+name = "envtools-gui"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+envtools-domain = { path = "../crates/domain" }
+envtools-application = { path = "../crates/application" }
+envtools-infrastructure = { path = "../crates/infrastructure" }
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dirs = "6"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[lib]
+name = "envtools_gui_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]

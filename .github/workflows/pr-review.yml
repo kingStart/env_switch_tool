@@ -1,0 +1,66 @@
+name: PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  clippy-review:
+    name: Clippy Review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - uses: giraffate/clippy-action@v1
+        with:
+          reporter: github-pr-review
+          clippy_flags: --workspace --all-targets
+          fail_on_error: true
+
+  fmt-review:
+    name: Format Review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: reviewdog/action-suggester@v1
+        with:
+          tool_name: rustfmt
+          fail_on_error: true
+          filter_mode: diff_context
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: cargo fmt --all
+
+  size-label:
+    name: PR Size Label
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: CodelyTV/pr-size-labeler@v1
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          xs_label: size/XS
+          xs_max_size: 10
+          s_label: size/S
+          s_max_size: 50
+          m_label: size/M
+          m_max_size: 200
+          l_label: size/L
+          l_max_size: 500
+          xl_label: size/XL
+          fail_if_xl: false

@@ -1,0 +1,226 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-test-
+
+      - name: Run tests
+        run: cargo test --workspace
+
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --workspace -- -D warnings
+
+  # ─── Unified build: CLI + GUI per platform x architecture ───
+  build:
+    name: Build ${{ matrix.platform }} (${{ matrix.arch }})
+    needs: [test, lint]
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x86_64
+          - platform: linux
+            arch: x86_64
+            runner: ubuntu-latest
+            rust_target: x86_64-unknown-linux-gnu
+            cli_artifact: envtools
+            gui_bundle_ext: "{deb,AppImage}"
+
+          # Linux aarch64
+          - platform: linux
+            arch: aarch64
+            runner: ubuntu-latest
+            rust_target: aarch64-unknown-linux-gnu
+            cli_artifact: envtools
+            gui_bundle_ext: "{deb,AppImage}"
+            cross: true
+
+          # macOS x86_64 (Intel)
+          - platform: macos
+            arch: x86_64
+            runner: macos-latest
+            rust_target: x86_64-apple-darwin
+            cli_artifact: envtools
+            gui_bundle_ext: "{dmg,app}"
+
+          # macOS aarch64 (Apple Silicon)
+          - platform: macos
+            arch: aarch64
+            runner: macos-latest
+            rust_target: aarch64-apple-darwin
+            cli_artifact: envtools
+            gui_bundle_ext: "{dmg,app}"
+
+          # Windows x86_64
+          - platform: windows
+            arch: x86_64
+            runner: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+            cli_artifact: envtools.exe
+            gui_bundle_ext: "{msi,exe}"
+
+          # Windows aarch64
+          - platform: windows
+            arch: aarch64
+            runner: windows-latest
+            rust_target: aarch64-pc-windows-msvc
+            cli_artifact: envtools.exe
+            gui_bundle_ext: "{msi,exe}"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Install cross-compilation tools (Linux aarch64)
+        if: matrix.cross == true
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+
+      - name: Install system dependencies (Linux GUI)
+        if: matrix.platform == 'linux' && matrix.cross != true
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ matrix.rust_target }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ matrix.rust_target }}-cargo-build-
+
+      # ── Build CLI ──
+      - name: Build CLI (release)
+        run: cargo build --release -p envtools-cli --target ${{ matrix.rust_target }}
+
+      # ── Build GUI (skip for cross-compiled Linux arm64 — no webkit available) ──
+      - name: Install frontend dependencies
+        if: matrix.cross != true
+        run: npm ci
+
+      - name: Build frontend
+        if: matrix.cross != true
+        run: npm run build
+
+      - name: Build Tauri GUI (release)
+        if: matrix.cross != true
+        working-directory: src-tauri
+        run: cargo build --release --target ${{ matrix.rust_target }}
+
+      # ── Package artifacts ──
+      - name: Prepare output directory
+        shell: bash
+        run: |
+          mkdir -p dist/envtools-${{ matrix.platform }}-${{ matrix.arch }}
+          cp target/${{ matrix.rust_target }}/release/${{ matrix.cli_artifact }} \
+             dist/envtools-${{ matrix.platform }}-${{ matrix.arch }}/
+
+      - name: Copy GUI binary (non-cross)
+        if: matrix.cross != true
+        shell: bash
+        run: |
+          if [ "${{ matrix.platform }}" = "windows" ]; then
+            cp target/${{ matrix.rust_target }}/release/envtools-gui.exe \
+               dist/envtools-${{ matrix.platform }}-${{ matrix.arch }}/ 2>/dev/null || true
+          else
+            cp target/${{ matrix.rust_target }}/release/envtools-gui \
+               dist/envtools-${{ matrix.platform }}-${{ matrix.arch }}/ 2>/dev/null || true
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: envtools-${{ matrix.platform }}-${{ matrix.arch }}
+          path: dist/envtools-${{ matrix.platform }}-${{ matrix.arch }}/
+          retention-days: 30
+
+  # ─── Release: aggregate all platform artifacts ───
+  release:
+    name: Release
+    needs: [build]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/
+
+      - name: Create compressed archives
+        run: |
+          cd dist
+          for dir in envtools-*/; do
+            name="${dir%/}"
+            if [[ "$name" == *windows* ]]; then
+              zip -r "${name}.zip" "$dir"
+            else
+              tar -czf "${name}.tar.gz" "$dir"
+            fi
+          done
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+          generate_release_notes: true

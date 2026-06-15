@@ -1,0 +1,18 @@
+[package]
+name = "envtools-infrastructure"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+envtools-domain = { path = "../domain" }
+envtools-application = { path = "../application" }
+serde = { version = "1", features = ["derive"] }
+toml = "0.8"
+thiserror = "2"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
+windows = { version = "0.58", features = ["Win32_UI_WindowsAndMessaging", "Win32_Foundation"] }
+
+[dev-dependencies]
+tempfile = "3"

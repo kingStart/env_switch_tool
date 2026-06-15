@@ -1,0 +1,11 @@
+[package]
+name = "envtools-domain"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+thiserror = "2"
+chrono = { version = "0.4", default-features = false, features = ["std", "clock"] }
+
+[dev-dependencies]
+proptest = "1"

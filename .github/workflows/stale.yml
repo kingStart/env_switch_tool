@@ -1,0 +1,32 @@
+name: Stale
+
+on:
+  schedule:
+    - cron: "0 0 * * 0"
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          stale-issue-message: >
+            此 Issue 已 60 天无活动，将在 14 天后自动关闭。
+            如仍需处理请回复或移除 stale 标签。
+          stale-pr-message: >
+            此 PR 已 30 天无活动，将在 14 天后自动关闭。
+            如仍需合入请更新代码或回复。
+          close-issue-message: 已因长期无活动自动关闭，如需可随时重新打开。
+          close-pr-message: 已因长期无活动自动关闭，如需可随时重新打开。
+          days-before-issue-stale: 60
+          days-before-pr-stale: 30
+          days-before-issue-close: 14
+          days-before-pr-close: 14
+          stale-issue-label: stale
+          stale-pr-label: stale
+          exempt-issue-labels: pinned,in-progress
+          exempt-pr-labels: pinned,in-progress
