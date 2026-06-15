@@ -83,10 +83,7 @@ impl GroupPolicy {
     }
 
     /// Determine which keys need to be unset when transitioning from old to new resolved state.
-    pub fn diff_unset_keys(
-        old: &ResolvedEnvironment,
-        new: &ResolvedEnvironment,
-    ) -> Vec<String> {
+    pub fn diff_unset_keys(old: &ResolvedEnvironment, new: &ResolvedEnvironment) -> Vec<String> {
         old.managed_keys
             .iter()
             .filter(|k| !new.variables.contains_key(*k))

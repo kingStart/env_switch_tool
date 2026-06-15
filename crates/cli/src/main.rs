@@ -13,7 +13,11 @@ fn default_config_dir() -> PathBuf {
 }
 
 #[derive(Parser)]
-#[command(name = "envtools", version, about = "Environment variable group manager")]
+#[command(
+    name = "envtools",
+    version,
+    about = "Environment variable group manager"
+)]
 struct Cli {
     /// Custom config directory
     #[arg(long, global = true)]
@@ -136,7 +140,11 @@ fn main() {
             ShellAction::Init { shell_type } => commands::shell_init(&config_dir, &shell_type),
         },
         Commands::Export { output, groups } => {
-            let filter = if groups.is_empty() { None } else { Some(groups) };
+            let filter = if groups.is_empty() {
+                None
+            } else {
+                Some(groups)
+            };
             commands::export_config(&repo, output.as_deref(), filter.as_deref())
         }
         Commands::Import { file, overwrite } => commands::import_config(&repo, &file, overwrite),

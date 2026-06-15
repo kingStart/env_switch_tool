@@ -78,10 +78,7 @@ fn auto_inject_hooks(_config_dir: &Path) -> Vec<std::path::PathBuf> {
     injected
 }
 
-fn inject_hook_to_file(
-    profile_path: &Path,
-    shell_type: &str,
-) -> Result<(), std::io::Error> {
+fn inject_hook_to_file(profile_path: &Path, shell_type: &str) -> Result<(), std::io::Error> {
     let existing = if profile_path.exists() {
         fs::read_to_string(profile_path)?
     } else {
@@ -155,7 +152,10 @@ pub fn group_list(repo: &dyn GroupRepository) -> Result<(), DomainError> {
         return Ok(());
     }
 
-    println!("{:<20} {:<8} {:<8} {}", "NAME", "ACTIVE", "PRIO", "DESCRIPTION");
+    println!(
+        "{:<20} {:<8} {:<8} {}",
+        "NAME", "ACTIVE", "PRIO", "DESCRIPTION"
+    );
     println!("{}", "-".repeat(60));
     for g in &groups {
         let status = if g.active { "[ON]" } else { "[OFF]" };
@@ -283,9 +283,19 @@ pub fn status(repo: &dyn GroupRepository) -> Result<(), DomainError> {
     let separator = if cfg!(windows) { ";" } else { ":" };
     let resolved = GroupPolicy::resolve(&refs, separator);
 
-    println!("Active groups: {}", active_groups.iter().map(|g| g.name()).collect::<Vec<_>>().join(", "));
+    println!(
+        "Active groups: {}",
+        active_groups
+            .iter()
+            .map(|g| g.name())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
     println!();
-    println!("Resolved environment ({} variables):", resolved.variables.len());
+    println!(
+        "Resolved environment ({} variables):",
+        resolved.variables.len()
+    );
     let mut sorted: Vec<_> = resolved.variables.iter().collect();
     sorted.sort_by_key(|(k, _)| k.as_str());
     for (key, value) in &sorted {
@@ -462,16 +472,19 @@ pub fn export_config(
 ) -> Result<(), DomainError> {
     let uc = ExportImportUseCase::new(repo);
     let data = uc.export(filter)?;
-    let json = serde_json::to_string_pretty(&data).map_err(|e| {
-        DomainError::InvalidVariableKey(format!("serialization error: {e}"))
-    })?;
+    let json = serde_json::to_string_pretty(&data)
+        .map_err(|e| DomainError::InvalidVariableKey(format!("serialization error: {e}")))?;
 
     match output {
         Some(path) => {
             fs::write(path, &json).map_err(|e| {
                 DomainError::GroupNotFound(format!("failed to write export file: {e}"))
             })?;
-            println!("Exported {} group(s) to: {}", data.groups.len(), path.display());
+            println!(
+                "Exported {} group(s) to: {}",
+                data.groups.len(),
+                path.display()
+            );
         }
         None => {
             println!("{json}");
@@ -485,12 +498,10 @@ pub fn import_config(
     file: &Path,
     overwrite: bool,
 ) -> Result<(), DomainError> {
-    let content = fs::read_to_string(file).map_err(|e| {
-        DomainError::GroupNotFound(format!("failed to read import file: {e}"))
-    })?;
-    let data: ExportData = serde_json::from_str(&content).map_err(|e| {
-        DomainError::InvalidVariableKey(format!("invalid import file format: {e}"))
-    })?;
+    let content = fs::read_to_string(file)
+        .map_err(|e| DomainError::GroupNotFound(format!("failed to read import file: {e}")))?;
+    let data: ExportData = serde_json::from_str(&content)
+        .map_err(|e| DomainError::InvalidVariableKey(format!("invalid import file format: {e}")))?;
 
     let uc = ExportImportUseCase::new(repo);
     let result = uc.import(&data, overwrite)?;

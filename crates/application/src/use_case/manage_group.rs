@@ -3,9 +3,7 @@ use envtools_domain::model::env_group::EnvGroup;
 use envtools_domain::model::env_variable::{EnvVariable, PathMode};
 use envtools_domain::repository::GroupRepository;
 
-use crate::dto::{
-    AddVariableRequest, CreateGroupRequest, GroupDetail, GroupInfo, VariableInfo,
-};
+use crate::dto::{AddVariableRequest, CreateGroupRequest, GroupDetail, GroupInfo, VariableInfo};
 
 pub struct ManageGroupUseCase<'a> {
     repo: &'a dyn GroupRepository,

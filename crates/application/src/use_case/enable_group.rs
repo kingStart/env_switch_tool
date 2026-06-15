@@ -1,8 +1,8 @@
 use envtools_domain::error::DomainError;
 use envtools_domain::repository::GroupRepository;
 
-use crate::use_case::sync_environment::SyncEnvironmentUseCase;
 use crate::port::StateFileWriter;
+use crate::use_case::sync_environment::SyncEnvironmentUseCase;
 
 pub struct EnableGroupUseCase<'a> {
     repo: &'a dyn GroupRepository,

@@ -1,28 +1,24 @@
 version: 2
 updates:
-  - package-ecosystem: cargo
-    directory: /
+  - package-ecosystem: "cargo"
+    directory: "/"
     schedule:
-      interval: weekly
-      day: monday
+      interval: "weekly"
+      day: "monday"
+    # 限制同时打开的 PR 数量
     open-pull-requests-limit: 5
-    labels:
-      - dependencies
-      - automated
-    commit-message:
-      prefix: "deps"
+    # 只更新补丁版本（避免 breaking change）
+    versioning-strategy: "increase-if-necessary"
+    # 合并小版本更新到一个 PR
     groups:
-      rust-minor:
-        update-types: [minor, patch]
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
 
-  - package-ecosystem: github-actions
-    directory: /
+  - package-ecosystem: "npm"
+    directory: "/"
     schedule:
-      interval: weekly
-      day: monday
+      interval: "weekly"
+      day: "monday"
     open-pull-requests-limit: 3
-    labels:
-      - ci
-      - automated
-    commit-message:
-      prefix: "ci"

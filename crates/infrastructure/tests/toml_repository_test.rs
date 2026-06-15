@@ -41,9 +41,7 @@ fn save_preserves_path_mode() {
     let (_dir, repo) = setup();
     let mut group = EnvGroup::new("go", "");
     group
-        .add_variable(
-            EnvVariable::with_path_mode("PATH", "/go/bin", PathMode::Prepend).unwrap(),
-        )
+        .add_variable(EnvVariable::with_path_mode("PATH", "/go/bin", PathMode::Prepend).unwrap())
         .unwrap();
 
     repo.save(&group).unwrap();

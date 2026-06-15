@@ -17,19 +17,16 @@ impl WindowsEnvRepository {
 
     fn open_key(&self) -> Result<RegKey, DomainError> {
         let hkey = if self.system_level {
-            RegKey::predef(HKEY_LOCAL_MACHINE)
-                .open_subkey_with_flags(
-                    r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment",
-                    KEY_READ | KEY_WRITE,
-                )
+            RegKey::predef(HKEY_LOCAL_MACHINE).open_subkey_with_flags(
+                r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment",
+                KEY_READ | KEY_WRITE,
+            )
         } else {
             RegKey::predef(HKEY_CURRENT_USER)
                 .open_subkey_with_flags("Environment", KEY_READ | KEY_WRITE)
         };
 
-        hkey.map_err(|e| {
-            DomainError::GroupNotFound(format!("failed to open registry key: {e}"))
-        })
+        hkey.map_err(|e| DomainError::GroupNotFound(format!("failed to open registry key: {e}")))
     }
 }
 
@@ -64,9 +61,9 @@ impl SystemEnvRepository for WindowsEnvRepository {
     }
 
     fn broadcast_change(&self) -> Result<(), DomainError> {
+        use windows::core::*;
         use windows::Win32::Foundation::*;
         use windows::Win32::UI::WindowsAndMessaging::*;
-        use windows::core::*;
 
         unsafe {
             let mut result: usize = 0;

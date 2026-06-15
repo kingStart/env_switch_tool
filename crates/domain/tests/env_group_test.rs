@@ -67,7 +67,9 @@ fn add_variable_stores_and_emits_event() {
     assert_eq!(group.variables().len(), 1);
     assert_eq!(group.variables()[0].key(), "JAVA_HOME");
     assert_eq!(events.len(), 1);
-    assert!(matches!(&events[0], DomainEvent::VariableAdded { group_name, .. } if group_name == "test"));
+    assert!(
+        matches!(&events[0], DomainEvent::VariableAdded { group_name, .. } if group_name == "test")
+    );
 }
 
 #[test]

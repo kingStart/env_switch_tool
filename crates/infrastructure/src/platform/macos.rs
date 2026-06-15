@@ -20,27 +20,22 @@ impl MacOsEnvRepository {
     }
 
     pub fn with_path(path: PathBuf) -> Self {
-        Self {
-            profile_path: path,
-        }
+        Self { profile_path: path }
     }
 
     fn read_profile(&self) -> Result<Vec<(String, String)>, DomainError> {
         if !self.profile_path.exists() {
             return Ok(Vec::new());
         }
-        let content = fs::read_to_string(&self.profile_path).map_err(|e| {
-            DomainError::GroupNotFound(format!("failed to read profile: {e}"))
-        })?;
+        let content = fs::read_to_string(&self.profile_path)
+            .map_err(|e| DomainError::GroupNotFound(format!("failed to read profile: {e}")))?;
 
         let mut vars = Vec::new();
         for line in content.lines() {
             if let Some(assignment) = line.strip_prefix("export ") {
                 if let Some(eq_pos) = assignment.find('=') {
                     let key = assignment[..eq_pos].to_string();
-                    let value = assignment[eq_pos + 1..]
-                        .trim_matches('"')
-                        .to_string();
+                    let value = assignment[eq_pos + 1..].trim_matches('"').to_string();
                     vars.push((key, value));
                 }
             }
@@ -53,9 +48,8 @@ impl MacOsEnvRepository {
         for (key, value) in vars {
             content.push_str(&format!("export {key}=\"{value}\"\n"));
         }
-        fs::write(&self.profile_path, content).map_err(|e| {
-            DomainError::GroupNotFound(format!("failed to write profile: {e}"))
-        })
+        fs::write(&self.profile_path, content)
+            .map_err(|e| DomainError::GroupNotFound(format!("failed to write profile: {e}")))
     }
 }
 
@@ -81,9 +75,7 @@ impl SystemEnvRepository for MacOsEnvRepository {
     }
 
     fn remove(&self, key: &str) -> Result<(), DomainError> {
-        let _ = Command::new("launchctl")
-            .args(["unsetenv", key])
-            .output();
+        let _ = Command::new("launchctl").args(["unsetenv", key]).output();
 
         let mut vars = self.read_profile()?;
         vars.retain(|(k, _)| k != key);

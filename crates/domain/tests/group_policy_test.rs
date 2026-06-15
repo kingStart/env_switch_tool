@@ -64,16 +64,12 @@ fn append_mode_merges_path() {
 #[test]
 fn multiple_prepends_from_different_groups() {
     let mut g1 = EnvGroup::with_priority("java", "", 5);
-    g1.add_variable(
-        EnvVariable::with_path_mode("PATH", "/java/bin", PathMode::Prepend).unwrap(),
-    )
-    .unwrap();
+    g1.add_variable(EnvVariable::with_path_mode("PATH", "/java/bin", PathMode::Prepend).unwrap())
+        .unwrap();
 
     let mut g2 = EnvGroup::with_priority("go", "", 10);
-    g2.add_variable(
-        EnvVariable::with_path_mode("PATH", "/go/bin", PathMode::Prepend).unwrap(),
-    )
-    .unwrap();
+    g2.add_variable(EnvVariable::with_path_mode("PATH", "/go/bin", PathMode::Prepend).unwrap())
+        .unwrap();
 
     let resolved = GroupPolicy::resolve(&[&g1, &g2], ":");
     let path_val = resolved.variables.get("PATH").unwrap();

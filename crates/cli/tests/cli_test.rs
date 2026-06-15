@@ -27,10 +27,7 @@ fn group_list_empty() {
     let dir = TempDir::new().unwrap();
     let config_dir = dir.path().join(".envtools");
 
-    envtools_cmd(&config_dir)
-        .arg("init")
-        .assert()
-        .success();
+    envtools_cmd(&config_dir).arg("init").assert().success();
 
     envtools_cmd(&config_dir)
         .args(["group", "list"])
@@ -56,7 +53,12 @@ fn full_workflow_create_set_enable_status() {
 
     // Set variables
     envtools_cmd(&config_dir)
-        .args(["set", "java", "JAVA_HOME=/usr/lib/jvm/java-17", "+PATH=/usr/lib/jvm/java-17/bin"])
+        .args([
+            "set",
+            "java",
+            "JAVA_HOME=/usr/lib/jvm/java-17",
+            "+PATH=/usr/lib/jvm/java-17/bin",
+        ])
         .assert()
         .success()
         .stdout(predicate::str::contains("Updated 2 variable(s)"));

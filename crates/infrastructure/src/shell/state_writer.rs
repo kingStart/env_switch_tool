@@ -1,9 +1,9 @@
 use std::fs;
 use std::path::PathBuf;
 
+use envtools_application::port::StateFileWriter;
 use envtools_domain::error::DomainError;
 use envtools_domain::service::group_policy::ResolvedEnvironment;
-use envtools_application::port::StateFileWriter;
 
 pub struct FileStateWriter {
     base_dir: PathBuf,
@@ -63,9 +63,7 @@ impl StateFileWriter for FileStateWriter {
         lines.push(String::new());
 
         let keys_list = resolved.managed_keys.join(",");
-        lines.push(format!(
-            "$env:__ENVTOOLS_MANAGED_KEYS = \"{keys_list}\""
-        ));
+        lines.push(format!("$env:__ENVTOOLS_MANAGED_KEYS = \"{keys_list}\""));
         lines.push(String::new());
 
         let mut sorted_vars: Vec<_> = resolved.variables.iter().collect();

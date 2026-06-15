@@ -109,9 +109,7 @@ impl TomlGroupRepository {
 
     fn load(&self) -> Result<ConfigFile, DomainError> {
         if !self.config_path.exists() {
-            return Ok(ConfigFile {
-                groups: Vec::new(),
-            });
+            return Ok(ConfigFile { groups: Vec::new() });
         }
         let content = fs::read_to_string(&self.config_path)
             .map_err(|e| DomainError::GroupNotFound(format!("failed to read config: {e}")))?;
@@ -131,7 +129,11 @@ impl TomlGroupRepository {
 impl GroupRepository for TomlGroupRepository {
     fn find_by_name(&self, name: &str) -> Result<Option<EnvGroup>, DomainError> {
         let config = self.load()?;
-        Ok(config.groups.iter().find(|g| g.name == name).map(|g| g.to_domain()))
+        Ok(config
+            .groups
+            .iter()
+            .find(|g| g.name == name)
+            .map(|g| g.to_domain()))
     }
 
     fn find_all(&self) -> Result<Vec<EnvGroup>, DomainError> {
