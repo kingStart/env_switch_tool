@@ -6,6 +6,7 @@ use tempfile::TempDir;
 
 fn envtools_cmd(config_dir: &std::path::Path) -> Command {
     let mut cmd = Command::cargo_bin("envtools").unwrap();
+    cmd.env("ENVTOOLS_SKIP_INJECT", "1");
     cmd.arg("--config-dir").arg(config_dir);
     cmd
 }

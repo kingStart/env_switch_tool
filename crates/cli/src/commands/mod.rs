@@ -17,7 +17,10 @@ pub fn init(config_dir: &Path, repo: &TomlGroupRepository) -> Result<(), DomainE
     repo.ensure_config_dir()?;
     println!("Initialized envtools at: {}", config_dir.display());
 
-    // Auto-inject shell hooks into detected profile files
+    if std::env::var("ENVTOOLS_SKIP_INJECT").is_ok() {
+        return Ok(());
+    }
+
     let injected = auto_inject_hooks(config_dir);
     if injected.is_empty() {
         println!();
