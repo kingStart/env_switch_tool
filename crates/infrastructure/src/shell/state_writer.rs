@@ -5,6 +5,7 @@ use envtools_application::port::StateFileWriter;
 use envtools_domain::error::DomainError;
 use envtools_domain::service::group_policy::ResolvedEnvironment;
 
+#[cfg(windows)]
 const MANAGED_KEYS_REG: &str = "__ENVTOOLS_MANAGED_KEYS";
 
 pub struct FileStateWriter {
