@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { useI18n, t } from "../i18n";
 
 interface GroupInfo {
@@ -16,7 +17,7 @@ interface Props {
   onDelete: (name: string) => void;
 }
 
-export function GroupList({ groups, selectedGroup, onSelect, onToggle, onDelete }: Props) {
+export const GroupList = memo(function GroupList({ groups, selectedGroup, onSelect, onToggle, onDelete }: Props) {
   const { messages } = useI18n();
 
   if (groups.length === 0) {
@@ -95,4 +96,4 @@ export function GroupList({ groups, selectedGroup, onSelect, onToggle, onDelete 
       })}
     </div>
   );
-}
+});

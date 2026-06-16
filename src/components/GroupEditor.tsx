@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, memo, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { useI18n } from "../i18n";
 
@@ -21,29 +21,34 @@ interface Props {
   onUpdate: () => void;
 }
 
-export function GroupEditor({ groupName, onUpdate }: Props) {
+export const GroupEditor = memo(function GroupEditor({ groupName, onUpdate }: Props) {
   const { messages } = useI18n();
   const [detail, setDetail] = useState<GroupDetail | null>(null);
   const [newKey, setNewKey] = useState("");
   const [newValue, setNewValue] = useState("");
   const [newMode, setNewMode] = useState("override");
   const [error, setError] = useState<string | null>(null);
+  const prevVarCount = useRef<number>(0);
 
   const loadDetail = useCallback(async () => {
     try {
       const result = await invoke<GroupDetail>("get_group_detail", { name: groupName });
       setDetail(result);
       setError(null);
+      if (result.variables.length !== prevVarCount.current) {
+        prevVarCount.current = result.variables.length;
+        onUpdate();
+      }
     } catch (e) {
       setError(String(e));
     }
-  }, [groupName]);
+  }, [groupName, onUpdate]);
 
   useEffect(() => {
     loadDetail();
   }, [loadDetail]);
 
-  async function handleAddVariable(e: React.FormEvent) {
+  const handleAddVariable = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newKey.trim()) return;
     try {
@@ -52,21 +57,19 @@ export function GroupEditor({ groupName, onUpdate }: Props) {
       setNewValue("");
       setNewMode("override");
       await loadDetail();
-      onUpdate();
     } catch (err) {
       setError(String(err));
     }
-  }
+  }, [groupName, newKey, newValue, newMode, loadDetail]);
 
-  async function handleRemoveVariable(key: string) {
+  const handleRemoveVariable = useCallback(async (key: string) => {
     try {
       await invoke("remove_variable", { groupName, key });
       await loadDetail();
-      onUpdate();
     } catch (err) {
       setError(String(err));
     }
-  }
+  }, [groupName, loadDetail]);
 
   if (!detail) {
     return (
@@ -205,4 +208,4 @@ export function GroupEditor({ groupName, onUpdate }: Props) {
       </div>
     </div>
   );
-}
+});

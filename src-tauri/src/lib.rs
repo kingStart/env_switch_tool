@@ -49,17 +49,18 @@ fn ensure_initialized() {
 fn inject_powershell_hook(config_dir: &std::path::Path) {
     use std::process::Command;
     let _ = Command::new("powershell")
-        .args(["-ExecutionPolicy", "Bypass", "-Command",
-            "Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force"])
+        .args([
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            "Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force",
+        ])
         .output();
 
     let home = dirs::home_dir().unwrap_or_default();
     let docs = home.join("Documents");
 
-    let profile_dirs = [
-        docs.join("PowerShell"),
-        docs.join("WindowsPowerShell"),
-    ];
+    let profile_dirs = [docs.join("PowerShell"), docs.join("WindowsPowerShell")];
 
     for profile_dir in &profile_dirs {
         if std::fs::create_dir_all(profile_dir).is_err() {

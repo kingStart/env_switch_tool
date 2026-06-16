@@ -121,9 +121,7 @@ impl StateFileWriter for FileStateWriter {
             let keys_csv = resolved.managed_keys.join(",");
             env_key
                 .set_value(MANAGED_KEYS_REG, &keys_csv)
-                .map_err(|e| {
-                    DomainError::GroupNotFound(format!("registry write failed: {e}"))
-                })?;
+                .map_err(|e| DomainError::GroupNotFound(format!("registry write failed: {e}")))?;
 
             // Write each variable
             for (key, value) in &resolved.variables {
@@ -142,19 +140,21 @@ impl StateFileWriter for FileStateWriter {
 
 #[cfg(windows)]
 fn broadcast_env_change() {
-    use windows::Win32::Foundation::*;
-    use windows::Win32::UI::WindowsAndMessaging::*;
-    use windows::core::*;
+    std::thread::spawn(|| {
+        use windows::core::*;
+        use windows::Win32::Foundation::*;
+        use windows::Win32::UI::WindowsAndMessaging::*;
 
-    unsafe {
-        let _ = SendMessageTimeoutW(
-            HWND_BROADCAST,
-            WM_SETTINGCHANGE,
-            WPARAM(0),
-            LPARAM(w!("Environment").as_ptr() as isize),
-            SMTO_ABORTIFHUNG,
-            5000,
-            None,
-        );
-    }
+        unsafe {
+            let _ = SendMessageTimeoutW(
+                HWND_BROADCAST,
+                WM_SETTINGCHANGE,
+                WPARAM(0),
+                LPARAM(w!("Environment").as_ptr() as isize),
+                SMTO_ABORTIFHUNG,
+                2000,
+                None,
+            );
+        }
+    });
 }

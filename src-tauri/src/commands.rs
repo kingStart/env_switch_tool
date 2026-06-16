@@ -151,7 +151,7 @@ pub fn set_variable(
         path_mode: mode,
     })
     .map_err(|e| e.to_string())?;
-    sync_if_active(&r, &group_name)
+    sync_active_env(&r)
 }
 
 #[tauri::command]
@@ -160,20 +160,19 @@ pub fn remove_variable(group_name: String, key: String) -> Result<(), String> {
     let uc = ManageGroupUseCase::new(&r);
     uc.remove_variable(&group_name, &key)
         .map_err(|e| e.to_string())?;
-    sync_if_active(&r, &group_name)
+    sync_active_env(&r)
 }
 
-fn sync_if_active(repo: &dyn GroupRepository, group_name: &str) -> Result<(), String> {
-    if let Ok(Some(group)) = repo.find_by_name(group_name) {
-        if group.is_active() {
-            let w = writer();
-            use envtools_application::use_case::sync_environment::SyncEnvironmentUseCase;
-            SyncEnvironmentUseCase::new(repo, &w)
-                .execute()
-                .map_err(|e| e.to_string())?;
-        }
+fn sync_active_env(repo: &dyn GroupRepository) -> Result<(), String> {
+    let active = repo.find_active().map_err(|e| e.to_string())?;
+    if active.is_empty() {
+        return Ok(());
     }
-    Ok(())
+    let w = writer();
+    use envtools_application::use_case::sync_environment::SyncEnvironmentUseCase;
+    SyncEnvironmentUseCase::new(repo, &w)
+        .execute()
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
