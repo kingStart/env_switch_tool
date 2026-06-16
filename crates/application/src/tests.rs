@@ -1,6 +1,7 @@
 use envtools_domain::error::DomainError;
 use envtools_domain::model::env_group::EnvGroup;
 use envtools_domain::model::env_variable::{EnvVariable, PathMode};
+use envtools_domain::model::group_kind::GroupKind;
 use envtools_domain::repository::GroupRepository;
 use envtools_domain::service::group_policy::ResolvedEnvironment;
 
@@ -116,6 +117,7 @@ fn create_group_success() {
     uc.create_group(CreateGroupRequest {
         name: "java".to_string(),
         description: "Java env".to_string(),
+        kind: GroupKind::Env,
         priority: 10,
     })
     .unwrap();
@@ -132,6 +134,7 @@ fn create_duplicate_group_fails() {
     let result = uc.create_group(CreateGroupRequest {
         name: "java".to_string(),
         description: "".to_string(),
+        kind: GroupKind::Env,
         priority: 0,
     });
 

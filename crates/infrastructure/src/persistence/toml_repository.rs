@@ -4,15 +4,20 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 
 use envtools_domain::error::DomainError;
-use envtools_domain::model::env_group::EnvGroup;
 use envtools_domain::model::env_variable::{EnvVariable, PathMode};
+use envtools_domain::model::group_kind::GroupKind;
+use envtools_domain::model::hosts_entry::HostsEntry;
+use envtools_domain::model::managed_group::ManagedGroup;
 use envtools_domain::model::priority::Priority;
-use envtools_domain::repository::GroupRepository;
+use envtools_domain::model::profile::Profile;
+use envtools_domain::repository::{GroupRepository, ProfileRepository};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct ConfigFile {
     #[serde(default)]
     groups: Vec<GroupEntry>,
+    #[serde(default)]
+    profiles: Vec<ProfileEntry>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -20,12 +25,16 @@ struct GroupEntry {
     name: String,
     #[serde(default)]
     description: String,
+    #[serde(default = "default_kind")]
+    kind: String,
     #[serde(default)]
     active: bool,
     #[serde(default)]
     priority: u32,
     #[serde(default)]
     variables: Vec<VariableEntry>,
+    #[serde(default)]
+    hosts_entries: Vec<HostsEntryEntry>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -36,12 +45,33 @@ struct VariableEntry {
     path_mode: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct HostsEntryEntry {
+    ip: String,
+    hostname: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct ProfileEntry {
+    name: String,
+    #[serde(default)]
+    description: String,
+    #[serde(default)]
+    groups: Vec<String>,
+}
+
+fn default_kind() -> String {
+    "env".to_string()
+}
+
 fn default_path_mode() -> String {
     "override".to_string()
 }
 
 impl GroupEntry {
-    fn to_domain(&self) -> EnvGroup {
+    fn to_domain(&self) -> ManagedGroup {
+        let kind = GroupKind::parse(&self.kind);
+
         let variables: Vec<EnvVariable> = self
             .variables
             .iter()
@@ -55,19 +85,28 @@ impl GroupEntry {
             })
             .collect();
 
-        EnvGroup::from_state(
+        let hosts_entries: Vec<HostsEntry> = self
+            .hosts_entries
+            .iter()
+            .filter_map(|e| HostsEntry::new(&e.ip, &e.hostname).ok())
+            .collect();
+
+        ManagedGroup::from_state(
             self.name.clone(),
             self.description.clone(),
+            kind,
             variables,
+            hosts_entries,
             self.active,
             Priority::new(self.priority),
         )
     }
 
-    fn from_domain(group: &EnvGroup) -> Self {
+    fn from_domain(group: &ManagedGroup) -> Self {
         Self {
             name: group.name().to_string(),
             description: group.description().to_string(),
+            kind: group.kind().to_string(),
             active: group.is_active(),
             priority: group.priority().value(),
             variables: group
@@ -83,6 +122,32 @@ impl GroupEntry {
                     },
                 })
                 .collect(),
+            hosts_entries: group
+                .hosts_entries()
+                .iter()
+                .map(|e| HostsEntryEntry {
+                    ip: e.ip().to_string(),
+                    hostname: e.hostname().to_string(),
+                })
+                .collect(),
+        }
+    }
+}
+
+impl ProfileEntry {
+    fn to_domain(&self) -> Profile {
+        Profile::from_state(
+            self.name.clone(),
+            self.description.clone(),
+            self.groups.clone(),
+        )
+    }
+
+    fn from_domain(profile: &Profile) -> Self {
+        Self {
+            name: profile.name().to_string(),
+            description: profile.description().to_string(),
+            groups: profile.group_names().to_vec(),
         }
     }
 }
@@ -109,7 +174,10 @@ impl TomlGroupRepository {
 
     fn load(&self) -> Result<ConfigFile, DomainError> {
         if !self.config_path.exists() {
-            return Ok(ConfigFile { groups: Vec::new() });
+            return Ok(ConfigFile {
+                groups: Vec::new(),
+                profiles: Vec::new(),
+            });
         }
         let content = fs::read_to_string(&self.config_path)
             .map_err(|e| DomainError::GroupNotFound(format!("failed to read config: {e}")))?;
@@ -127,7 +195,7 @@ impl TomlGroupRepository {
 }
 
 impl GroupRepository for TomlGroupRepository {
-    fn find_by_name(&self, name: &str) -> Result<Option<EnvGroup>, DomainError> {
+    fn find_by_name(&self, name: &str) -> Result<Option<ManagedGroup>, DomainError> {
         let config = self.load()?;
         Ok(config
             .groups
@@ -136,12 +204,12 @@ impl GroupRepository for TomlGroupRepository {
             .map(|g| g.to_domain()))
     }
 
-    fn find_all(&self) -> Result<Vec<EnvGroup>, DomainError> {
+    fn find_all(&self) -> Result<Vec<ManagedGroup>, DomainError> {
         let config = self.load()?;
         Ok(config.groups.iter().map(|g| g.to_domain()).collect())
     }
 
-    fn find_active(&self) -> Result<Vec<EnvGroup>, DomainError> {
+    fn find_active(&self) -> Result<Vec<ManagedGroup>, DomainError> {
         let config = self.load()?;
         Ok(config
             .groups
@@ -151,7 +219,7 @@ impl GroupRepository for TomlGroupRepository {
             .collect())
     }
 
-    fn save(&self, group: &EnvGroup) -> Result<(), DomainError> {
+    fn save(&self, group: &ManagedGroup) -> Result<(), DomainError> {
         let mut config = self.load()?;
         let entry = GroupEntry::from_domain(group);
 
@@ -173,5 +241,49 @@ impl GroupRepository for TomlGroupRepository {
     fn exists(&self, name: &str) -> Result<bool, DomainError> {
         let config = self.load()?;
         Ok(config.groups.iter().any(|g| g.name == name))
+    }
+}
+
+impl ProfileRepository for TomlGroupRepository {
+    fn find_all(&self) -> Result<Vec<Profile>, DomainError> {
+        let config = self.load()?;
+        Ok(config.profiles.iter().map(|p| p.to_domain()).collect())
+    }
+
+    fn find_by_name(&self, name: &str) -> Result<Option<Profile>, DomainError> {
+        let config = self.load()?;
+        Ok(config
+            .profiles
+            .iter()
+            .find(|p| p.name == name)
+            .map(|p| p.to_domain()))
+    }
+
+    fn save(&self, profile: &Profile) -> Result<(), DomainError> {
+        let mut config = self.load()?;
+        let entry = ProfileEntry::from_domain(profile);
+
+        if let Some(pos) = config
+            .profiles
+            .iter()
+            .position(|p| p.name == profile.name())
+        {
+            config.profiles[pos] = entry;
+        } else {
+            config.profiles.push(entry);
+        }
+
+        self.persist(&config)
+    }
+
+    fn delete(&self, name: &str) -> Result<(), DomainError> {
+        let mut config = self.load()?;
+        config.profiles.retain(|p| p.name != name);
+        self.persist(&config)
+    }
+
+    fn exists(&self, name: &str) -> Result<bool, DomainError> {
+        let config = self.load()?;
+        Ok(config.profiles.iter().any(|p| p.name == name))
     }
 }

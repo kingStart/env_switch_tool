@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { GroupList } from "./components/GroupList";
 import { GroupEditor } from "./components/GroupEditor";
 import { CreateGroupModal } from "./components/CreateGroupModal";
+import { ProfileSection } from "./components/ProfileSection";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { useTheme } from "./hooks/useTheme";
 import { I18nCtx, getMessages, t, type Locale } from "./i18n";
@@ -10,9 +11,11 @@ import { I18nCtx, getMessages, t, type Locale } from "./i18n";
 interface GroupInfo {
   name: string;
   description: string;
+  kind: string;
   active: boolean;
   priority: number;
   variable_count: number;
+  hosts_count: number;
 }
 
 export default function App() {
@@ -65,9 +68,9 @@ export default function App() {
     }
   }, [loadGroups]);
 
-  const handleCreate = useCallback(async (name: string, description: string, priority: number) => {
+  const handleCreate = useCallback(async (name: string, description: string, kind: string, priority: number) => {
     try {
-      await invoke("create_group", { name, description, priority });
+      await invoke("create_group", { name, description, kind, priority });
       setShowCreateModal(false);
       await loadGroups();
       setSelectedGroup(name);
@@ -139,13 +142,16 @@ export default function App() {
               {showSettings ? (
                 <SettingsPanel theme={theme} setTheme={setTheme} />
               ) : (
-                <GroupList
-                  groups={groups}
-                  selectedGroup={selectedGroup}
-                  onSelect={setSelectedGroup}
-                  onToggle={handleToggle}
-                  onDelete={handleDelete}
-                />
+                <>
+                  <ProfileSection onProfileAction={loadGroups} />
+                  <GroupList
+                    groups={groups}
+                    selectedGroup={selectedGroup}
+                    onSelect={setSelectedGroup}
+                    onToggle={handleToggle}
+                    onDelete={handleDelete}
+                  />
+                </>
               )}
             </div>
           </aside>

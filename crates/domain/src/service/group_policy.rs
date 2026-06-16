@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use crate::model::env_group::EnvGroup;
 use crate::model::env_variable::PathMode;
+use crate::model::managed_group::ManagedGroup;
 
 /// Resolved environment: the final set of key-value pairs after merging all active groups.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -19,8 +19,8 @@ impl GroupPolicy {
     /// Merge all active groups into a single resolved environment.
     /// Conflict resolution: higher priority wins.
     /// PATH-like variables are merged with prepend/append semantics.
-    pub fn resolve(groups: &[&EnvGroup], path_separator: &str) -> ResolvedEnvironment {
-        let mut sorted: Vec<&&EnvGroup> = groups.iter().collect();
+    pub fn resolve(groups: &[&ManagedGroup], path_separator: &str) -> ResolvedEnvironment {
+        let mut sorted: Vec<&&ManagedGroup> = groups.iter().collect();
         // Sort by priority ascending so higher priority overwrites later
         sorted.sort_by_key(|g| g.priority());
 

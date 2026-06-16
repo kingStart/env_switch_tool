@@ -1,6 +1,8 @@
 use envtools_domain::error::DomainError;
-use envtools_domain::model::env_group::EnvGroup;
 use envtools_domain::model::env_variable::{EnvVariable, PathMode};
+use envtools_domain::model::group_kind::GroupKind;
+use envtools_domain::model::hosts_entry::HostsEntry;
+use envtools_domain::model::managed_group::ManagedGroup;
 use envtools_domain::model::priority::Priority;
 use envtools_domain::repository::GroupRepository;
 
@@ -15,9 +17,14 @@ pub struct ExportData {
 pub struct ExportGroup {
     pub name: String,
     pub description: String,
+    #[serde(default)]
+    pub kind: String,
     pub active: bool,
     pub priority: u32,
+    #[serde(default)]
     pub variables: Vec<ExportVariable>,
+    #[serde(default)]
+    pub hosts_entries: Vec<ExportHostsEntry>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -25,6 +32,12 @@ pub struct ExportVariable {
     pub key: String,
     pub value: String,
     pub path_mode: String,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ExportHostsEntry {
+    pub ip: String,
+    pub hostname: String,
 }
 
 pub struct ExportImportUseCase<'a> {
@@ -39,7 +52,7 @@ impl<'a> ExportImportUseCase<'a> {
     /// Export all groups (or specific ones) to portable JSON format.
     pub fn export(&self, filter: Option<&[String]>) -> Result<ExportData, DomainError> {
         let all_groups = self.repo.find_all()?;
-        let groups: Vec<EnvGroup> = match filter {
+        let groups: Vec<ManagedGroup> = match filter {
             Some(names) => all_groups
                 .into_iter()
                 .filter(|g| names.iter().any(|n| n == g.name()))
@@ -52,6 +65,7 @@ impl<'a> ExportImportUseCase<'a> {
             .map(|g| ExportGroup {
                 name: g.name().to_string(),
                 description: g.description().to_string(),
+                kind: g.kind().to_string(),
                 active: g.is_active(),
                 priority: g.priority().value(),
                 variables: g
@@ -65,6 +79,14 @@ impl<'a> ExportImportUseCase<'a> {
                             PathMode::Prepend => "prepend".to_string(),
                             PathMode::Append => "append".to_string(),
                         },
+                    })
+                    .collect(),
+                hosts_entries: g
+                    .hosts_entries()
+                    .iter()
+                    .map(|e| ExportHostsEntry {
+                        ip: e.ip().to_string(),
+                        hostname: e.hostname().to_string(),
                     })
                     .collect(),
             })
@@ -90,6 +112,8 @@ impl<'a> ExportImportUseCase<'a> {
                 continue;
             }
 
+            let kind = GroupKind::parse(&eg.kind);
+
             let variables: Vec<EnvVariable> = eg
                 .variables
                 .iter()
@@ -103,10 +127,18 @@ impl<'a> ExportImportUseCase<'a> {
                 })
                 .collect();
 
-            let group = EnvGroup::from_state(
+            let hosts_entries: Vec<HostsEntry> = eg
+                .hosts_entries
+                .iter()
+                .filter_map(|e| HostsEntry::new(&e.ip, &e.hostname).ok())
+                .collect();
+
+            let group = ManagedGroup::from_state(
                 eg.name.clone(),
                 eg.description.clone(),
+                kind,
                 variables,
+                hosts_entries,
                 eg.active,
                 Priority::new(eg.priority),
             );

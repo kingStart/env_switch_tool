@@ -1,14 +1,16 @@
 use std::fs;
 use std::path::Path;
 
-use envtools_application::dto::{AddVariableRequest, CreateGroupRequest};
+use envtools_application::dto::{AddHostsEntryRequest, AddVariableRequest, CreateGroupRequest};
 use envtools_application::port::StateFileWriter;
 use envtools_application::use_case::disable_group::DisableGroupUseCase;
 use envtools_application::use_case::enable_group::EnableGroupUseCase;
 use envtools_application::use_case::export_import::{ExportData, ExportImportUseCase};
 use envtools_application::use_case::manage_group::ManageGroupUseCase;
+use envtools_application::use_case::manage_profile::ManageProfileUseCase;
 use envtools_domain::error::DomainError;
 use envtools_domain::model::env_variable::PathMode;
+use envtools_domain::model::group_kind::GroupKind;
 use envtools_domain::repository::GroupRepository;
 use envtools_domain::service::group_policy::GroupPolicy;
 use envtools_infrastructure::TomlGroupRepository;
@@ -148,13 +150,16 @@ pub fn group_list(repo: &dyn GroupRepository) -> Result<(), DomainError> {
         return Ok(());
     }
 
-    println!("{:<20} {:<8} {:<8} DESCRIPTION", "NAME", "ACTIVE", "PRIO");
-    println!("{}", "-".repeat(60));
+    println!(
+        "{:<20} {:<6} {:<8} {:<8} DESCRIPTION",
+        "NAME", "KIND", "ACTIVE", "PRIO"
+    );
+    println!("{}", "-".repeat(70));
     for g in &groups {
         let status = if g.active { "[ON]" } else { "[OFF]" };
         println!(
-            "{:<20} {:<8} {:<8} {}",
-            g.name, status, g.priority, g.description
+            "{:<20} {:<6} {:<8} {:<8} {}",
+            g.name, g.kind, status, g.priority, g.description
         );
     }
     Ok(())
@@ -164,15 +169,18 @@ pub fn group_create(
     repo: &dyn GroupRepository,
     name: &str,
     description: &str,
+    kind_str: &str,
     priority: u32,
 ) -> Result<(), DomainError> {
+    let kind = GroupKind::parse(kind_str);
     let uc = ManageGroupUseCase::new(repo);
     uc.create_group(CreateGroupRequest {
         name: name.to_string(),
         description: description.to_string(),
+        kind,
         priority,
     })?;
-    println!("Created group: {name}");
+    println!("Created {kind} group: {name}");
     Ok(())
 }
 
@@ -188,20 +196,36 @@ pub fn group_show(repo: &dyn GroupRepository, name: &str) -> Result<(), DomainEr
     let detail = uc.show_group(name)?;
 
     println!("Group: {}", detail.name);
+    println!("Kind: {}", detail.kind);
     println!("Description: {}", detail.description);
     println!("Active: {}", detail.active);
     println!("Priority: {}", detail.priority);
-    println!("Variables:");
-    if detail.variables.is_empty() {
-        println!("  (none)");
-    } else {
-        for v in &detail.variables {
-            let mode_tag = match v.path_mode {
-                PathMode::Override => "",
-                PathMode::Prepend => " [prepend]",
-                PathMode::Append => " [append]",
-            };
-            println!("  {} = {}{}", v.key, v.value, mode_tag);
+
+    match detail.kind {
+        GroupKind::Env => {
+            println!("Variables:");
+            if detail.variables.is_empty() {
+                println!("  (none)");
+            } else {
+                for v in &detail.variables {
+                    let mode_tag = match v.path_mode {
+                        PathMode::Override => "",
+                        PathMode::Prepend => " [prepend]",
+                        PathMode::Append => " [append]",
+                    };
+                    println!("  {} = {}{}", v.key, v.value, mode_tag);
+                }
+            }
+        }
+        GroupKind::Hosts => {
+            println!("Hosts entries:");
+            if detail.hosts_entries.is_empty() {
+                println!("  (none)");
+            } else {
+                for e in &detail.hosts_entries {
+                    println!("  {} {}", e.ip, e.hostname);
+                }
+            }
         }
     }
     Ok(())
@@ -503,5 +527,156 @@ pub fn import_config(
         "Import complete: {} imported, {} skipped, {} overwritten",
         result.imported, result.skipped, result.overwritten
     );
+    Ok(())
+}
+
+// --- Hosts commands ---
+
+pub fn hosts_add(
+    repo: &dyn GroupRepository,
+    group: &str,
+    ip: &str,
+    hostname: &str,
+) -> Result<(), DomainError> {
+    let uc = ManageGroupUseCase::new(repo);
+    uc.add_hosts_entry(AddHostsEntryRequest {
+        group_name: group.to_string(),
+        ip: ip.to_string(),
+        hostname: hostname.to_string(),
+    })?;
+    println!("Added {ip} {hostname} to group '{group}'");
+    Ok(())
+}
+
+pub fn hosts_remove(
+    repo: &dyn GroupRepository,
+    group: &str,
+    hostname: &str,
+) -> Result<(), DomainError> {
+    let uc = ManageGroupUseCase::new(repo);
+    uc.remove_hosts_entry(group, hostname)?;
+    println!("Removed {hostname} from group '{group}'");
+    Ok(())
+}
+
+pub fn hosts_sync(repo: &dyn GroupRepository) -> Result<(), DomainError> {
+    use envtools_application::port::HostsFileWriter;
+    use envtools_infrastructure::SystemHostsFileWriter;
+
+    let active_groups = repo.find_active()?;
+    let hosts_entries: Vec<_> = active_groups
+        .iter()
+        .filter(|g| g.kind() == GroupKind::Hosts)
+        .flat_map(|g| g.hosts_entries().iter().cloned())
+        .collect();
+
+    let writer = SystemHostsFileWriter::new();
+    if hosts_entries.is_empty() {
+        writer.clear_managed()?;
+        println!("Cleared managed hosts entries.");
+    } else {
+        writer.apply_hosts(&hosts_entries)?;
+        println!(
+            "Synced {} hosts entries to system file.",
+            hosts_entries.len()
+        );
+    }
+    Ok(())
+}
+
+// --- Profile commands ---
+
+pub fn profile_list(repo: &TomlGroupRepository) -> Result<(), DomainError> {
+    use envtools_domain::repository::ProfileRepository;
+    let profiles = ProfileRepository::find_all(repo)?;
+
+    if profiles.is_empty() {
+        println!(
+            "No profiles defined. Create one with: envtools profile create <name> -g group1,group2"
+        );
+        return Ok(());
+    }
+
+    println!("{:<20} {:<40} GROUPS", "NAME", "DESCRIPTION");
+    println!("{}", "-".repeat(70));
+    for p in &profiles {
+        println!(
+            "{:<20} {:<40} {}",
+            p.name(),
+            p.description(),
+            p.group_names().join(", ")
+        );
+    }
+    Ok(())
+}
+
+pub fn profile_create(
+    repo: &TomlGroupRepository,
+    name: &str,
+    description: &str,
+    groups: Vec<String>,
+) -> Result<(), DomainError> {
+    use envtools_domain::model::profile::Profile;
+    use envtools_domain::repository::ProfileRepository;
+
+    if ProfileRepository::exists(repo, name)? {
+        return Err(DomainError::ProfileAlreadyExists(name.to_string()));
+    }
+    let mut profile = Profile::new(name, description)?;
+    profile.set_groups(groups);
+    ProfileRepository::save(repo, &profile)?;
+    println!("Created profile: {name}");
+    Ok(())
+}
+
+pub fn profile_delete(repo: &TomlGroupRepository, name: &str) -> Result<(), DomainError> {
+    use envtools_domain::repository::ProfileRepository;
+
+    if !ProfileRepository::exists(repo, name)? {
+        return Err(DomainError::ProfileNotFound(name.to_string()));
+    }
+    ProfileRepository::delete(repo, name)?;
+    println!("Deleted profile: {name}");
+    Ok(())
+}
+
+pub fn profile_show(repo: &TomlGroupRepository, name: &str) -> Result<(), DomainError> {
+    use envtools_domain::repository::ProfileRepository;
+
+    let profile = ProfileRepository::find_by_name(repo, name)?
+        .ok_or_else(|| DomainError::ProfileNotFound(name.to_string()))?;
+
+    println!("Profile: {}", profile.name());
+    println!("Description: {}", profile.description());
+    println!("Groups:");
+    if profile.group_names().is_empty() {
+        println!("  (none)");
+    } else {
+        for g in profile.group_names() {
+            println!("  - {g}");
+        }
+    }
+    Ok(())
+}
+
+pub fn profile_activate(
+    repo: &TomlGroupRepository,
+    state_writer: &dyn StateFileWriter,
+    name: &str,
+) -> Result<(), DomainError> {
+    let uc = ManageProfileUseCase::new(repo, repo, state_writer);
+    uc.activate(name)?;
+    println!("Activated profile: {name}");
+    Ok(())
+}
+
+pub fn profile_deactivate(
+    repo: &TomlGroupRepository,
+    state_writer: &dyn StateFileWriter,
+    name: &str,
+) -> Result<(), DomainError> {
+    let uc = ManageProfileUseCase::new(repo, repo, state_writer);
+    uc.deactivate(name)?;
+    println!("Deactivated profile: {name}");
     Ok(())
 }

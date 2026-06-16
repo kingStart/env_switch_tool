@@ -1,0 +1,48 @@
+---
+description: 跨平台构建规范 — x86/ARM 架构，Windows/Linux/macOS 系统
+alwaysApply: true
+---
+
+# 跨平台构建
+
+项目必须支持以下目标矩阵：
+
+| 架构 | Windows | Linux | macOS |
+|---|---|---|---|
+| x86_64 | `x86_64-pc-windows-msvc` | `x86_64-unknown-linux-gnu` | `x86_64-apple-darwin` |
+| aarch64 | `aarch64-pc-windows-msvc` | `aarch64-unknown-linux-gnu` | `aarch64-apple-darwin` |
+
+## 平台相关代码规范
+
+1. **条件编译** — 平台特定代码使用 `cfg` 属性隔离，集中在 Infrastructure 层
+
+```rust
+// 正确：Infrastructure 层中隔离平台实现
+#[cfg(target_os = "windows")]
+mod windows_impl;
+#[cfg(target_os = "linux")]
+mod linux_impl;
+#[cfg(target_os = "macos")]
+mod macos_impl;
+```
+
+2. **Domain / Application 层禁止 `cfg`** — 这两层必须是纯平台无关的逻辑
+3. **路径处理** — 统一使用 `std::path::PathBuf`，禁止硬编码路径分隔符
+4. **平台依赖** — 使用 `[target.'cfg(...)'.dependencies]` 声明
+
+```toml
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
+```
+
+5. **换行符** — 文件 I/O 层面统一处理 `\r\n` vs `\n`，Domain 层不感知
+
+## CI 构建矩阵
+
+每次 PR 必须在所有 6 个目标上通过编译检查（至少 `cargo check --target`），核心平台执行完整测试。
+
+## 新增依赖检查
+
+- 该 crate 是否支持所有 6 个目标？
+- 是否有 `cfg` 特定的替代方案？
+- C 依赖是否能交叉编译？

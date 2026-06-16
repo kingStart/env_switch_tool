@@ -1,0 +1,39 @@
+---
+description: DDD 分层架构规范，约束代码组织和依赖方向
+alwaysApply: true
+---
+
+# DDD 分层架构
+
+本项目采用严格的 Domain-Driven Design 分层架构，所有代码变更必须遵循以下约束。
+
+## 分层结构与依赖方向
+
+```
+domain ← application ← infrastructure ← cli / gui
+```
+
+依赖只能从右向左，**禁止反向依赖**。
+
+| 层 | crate | 职责 | 可依赖 |
+|---|---|---|---|
+| Domain | `envtools-domain` | 实体、值对象、领域服务、Repository trait | 无外部 crate（仅 `thiserror`、`chrono` 等纯逻辑库） |
+| Application | `envtools-application` | 用例编排、DTO、Port trait | `envtools-domain` |
+| Infrastructure | `envtools-infrastructure` | Repository/Port 实现、系统 I/O | `envtools-domain`、`envtools-application` |
+| CLI / GUI | `envtools-cli`、`src-tauri` | 用户交互入口 | 所有内层 |
+
+## 关键约束
+
+1. **Domain 层零框架依赖** — 不得引入 serde、clap、tokio 等框架 crate
+2. **Repository trait 定义在 Domain** — 实现放在 Infrastructure
+3. **Port trait 定义在 Application** — 实现放在 Infrastructure
+4. **用例（Use Case）是 Application 的公共 API** — 每个用例一个文件，命名 `use_case/<动作_名词>.rs`
+5. **DTO 不是领域模型** — DTO 在 Application 层，用于跨层数据传输；禁止在 Domain 层使用 DTO
+6. **聚合根** — 修改领域对象必须通过聚合根方法，不得直接修改内部状态
+
+## 新增代码检查清单
+
+- [ ] 新类型放对了层？
+- [ ] 依赖方向正确（无反向引用）？
+- [ ] Domain 层有没有引入不该有的外部 crate？
+- [ ] trait 和 impl 分别在正确的层？

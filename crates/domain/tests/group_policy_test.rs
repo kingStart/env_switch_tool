@@ -1,6 +1,8 @@
-use envtools_domain::model::env_group::EnvGroup;
 use envtools_domain::model::env_variable::{EnvVariable, PathMode};
+use envtools_domain::model::managed_group::ManagedGroup;
 use envtools_domain::service::group_policy::{GroupPolicy, ResolvedEnvironment};
+
+type EnvGroup = ManagedGroup;
 
 #[test]
 fn resolve_single_group() {

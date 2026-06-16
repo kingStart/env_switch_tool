@@ -30,7 +30,7 @@ Interface Layer ──→ Application Layer ──→ Domain Layer ←── Inf
 |----|------|------|
 | Domain | `crates/domain/` | 聚合根、值对象、领域服务、Repository Trait、领域事件 |
 | Application | `crates/application/` | Use Case 编排、DTO、Port 定义 |
-| Infrastructure | `crates/infrastructure/` | TOML 持久化、平台 Adapter、State Writer |
+| Infrastructure | `crates/infrastructure/` | TOML 持久化、平台 Adapter、State Writer、Hosts 文件操作、跨平台提权 |
 | Interface/CLI | `crates/cli/` | CLI 参数解析、命令路由 |
 | Interface/GUI | `src-tauri/` + `src/` | Tauri IPC Commands、React 前端 |
 
@@ -40,8 +40,11 @@ Interface Layer ──→ Application Layer ──→ Domain Layer ←── Inf
 
 ### 核心概念
 
-- **EnvGroup (Aggregate Root)**: 一组环境变量的集合，可启用/禁用
+- **ManagedGroup (Aggregate Root)**: 可管理的组（环境变量组或 Hosts 域名映射组），可启用/禁用
+- **GroupKind (Value Object)**: 组类型枚举 — `Env`（环境变量）或 `Hosts`（域名映射）
 - **EnvVariable (Value Object)**: 单个 key=value 环境变量，含 PathMode
+- **HostsEntry (Value Object)**: 单条 IP-hostname 映射，带格式校验
+- **Profile (Aggregate Root)**: 场景——绑定多个组名，一键激活/停用
 - **Priority (Value Object)**: 优先级，冲突解决时高优先级胜出
 - **GroupPolicy (Domain Service)**: 跨 Group 合并策略（PATH prepend/append、冲突解决）
 - **DomainEvent**: GroupEnabled / GroupDisabled / VariableAdded 等

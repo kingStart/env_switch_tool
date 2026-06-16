@@ -3,19 +3,20 @@ import { useI18n } from "../i18n";
 
 interface Props {
   onClose: () => void;
-  onCreate: (name: string, description: string, priority: number) => void;
+  onCreate: (name: string, description: string, kind: string, priority: number) => void;
 }
 
 export function CreateGroupModal({ onClose, onCreate }: Props) {
   const { messages } = useI18n();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [kind, setKind] = useState("env");
   const [priority, setPriority] = useState(0);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
-    onCreate(name.trim(), description, priority);
+    onCreate(name.trim(), description, kind, priority);
   }
 
   return (
@@ -38,6 +39,31 @@ export function CreateGroupModal({ onClose, onCreate }: Props) {
               autoFocus
               className="w-full px-3 py-2.5 border border-slate-200 dark:border-gray-600 bg-white dark:bg-gray-700 rounded-xl text-sm text-slate-800 dark:text-gray-200 placeholder:text-slate-300 dark:placeholder:text-gray-500 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-shadow"
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5">
+              {messages.group_kind}
+            </label>
+            <div className="flex gap-3">
+              <label className={`flex-1 flex items-center gap-2 px-3 py-2.5 border rounded-xl cursor-pointer transition-all ${
+                kind === "env"
+                  ? "border-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-600"
+                  : "border-slate-200 dark:border-gray-600 hover:border-slate-300"
+              }`}>
+                <input type="radio" name="kind" value="env" checked={kind === "env"} onChange={() => setKind("env")} className="sr-only" />
+                <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">ENV</span>
+                <span className="text-sm text-slate-700 dark:text-gray-300">{messages.kind_env}</span>
+              </label>
+              <label className={`flex-1 flex items-center gap-2 px-3 py-2.5 border rounded-xl cursor-pointer transition-all ${
+                kind === "hosts"
+                  ? "border-teal-400 bg-teal-50 dark:bg-teal-900/20 dark:border-teal-600"
+                  : "border-slate-200 dark:border-gray-600 hover:border-slate-300"
+              }`}>
+                <input type="radio" name="kind" value="hosts" checked={kind === "hosts"} onChange={() => setKind("hosts")} className="sr-only" />
+                <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400">DNS</span>
+                <span className="text-sm text-slate-700 dark:text-gray-300">{messages.kind_hosts}</span>
+              </label>
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5">

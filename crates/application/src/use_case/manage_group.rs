@@ -1,9 +1,13 @@
 use envtools_domain::error::DomainError;
-use envtools_domain::model::env_group::EnvGroup;
 use envtools_domain::model::env_variable::{EnvVariable, PathMode};
+use envtools_domain::model::hosts_entry::HostsEntry;
+use envtools_domain::model::managed_group::ManagedGroup;
 use envtools_domain::repository::GroupRepository;
 
-use crate::dto::{AddVariableRequest, CreateGroupRequest, GroupDetail, GroupInfo, VariableInfo};
+use crate::dto::{
+    AddHostsEntryRequest, AddVariableRequest, CreateGroupRequest, GroupDetail, GroupInfo,
+    HostsEntryInfo, VariableInfo,
+};
 
 pub struct ManageGroupUseCase<'a> {
     repo: &'a dyn GroupRepository,
@@ -18,7 +22,8 @@ impl<'a> ManageGroupUseCase<'a> {
         if self.repo.exists(&req.name)? {
             return Err(DomainError::GroupAlreadyExists(req.name));
         }
-        let group = EnvGroup::with_priority(req.name, req.description, req.priority);
+        let group =
+            ManagedGroup::with_kind_and_priority(req.name, req.description, req.kind, req.priority);
         self.repo.save(&group)
     }
 
@@ -36,9 +41,11 @@ impl<'a> ManageGroupUseCase<'a> {
             .map(|g| GroupInfo {
                 name: g.name().to_string(),
                 description: g.description().to_string(),
+                kind: g.kind(),
                 active: g.is_active(),
                 priority: g.priority().value(),
                 variable_count: g.variables().len(),
+                hosts_count: g.hosts_entries().len(),
             })
             .collect())
     }
@@ -52,6 +59,7 @@ impl<'a> ManageGroupUseCase<'a> {
         Ok(GroupDetail {
             name: group.name().to_string(),
             description: group.description().to_string(),
+            kind: group.kind(),
             active: group.is_active(),
             priority: group.priority().value(),
             variables: group
@@ -61,6 +69,14 @@ impl<'a> ManageGroupUseCase<'a> {
                     key: v.key().to_string(),
                     value: v.value().to_string(),
                     path_mode: v.path_mode().clone(),
+                })
+                .collect(),
+            hosts_entries: group
+                .hosts_entries()
+                .iter()
+                .map(|e| HostsEntryInfo {
+                    ip: e.ip().to_string(),
+                    hostname: e.hostname().to_string(),
                 })
                 .collect(),
         })
@@ -89,6 +105,27 @@ impl<'a> ManageGroupUseCase<'a> {
             .ok_or_else(|| DomainError::GroupNotFound(group_name.to_string()))?;
 
         group.remove_variable(key)?;
+        self.repo.save(&group)
+    }
+
+    pub fn add_hosts_entry(&self, req: AddHostsEntryRequest) -> Result<(), DomainError> {
+        let mut group = self
+            .repo
+            .find_by_name(&req.group_name)?
+            .ok_or_else(|| DomainError::GroupNotFound(req.group_name.clone()))?;
+
+        let entry = HostsEntry::new(req.ip, req.hostname)?;
+        group.add_hosts_entry(entry)?;
+        self.repo.save(&group)
+    }
+
+    pub fn remove_hosts_entry(&self, group_name: &str, hostname: &str) -> Result<(), DomainError> {
+        let mut group = self
+            .repo
+            .find_by_name(group_name)?
+            .ok_or_else(|| DomainError::GroupNotFound(group_name.to_string()))?;
+
+        group.remove_hosts_entry(hostname)?;
         self.repo.save(&group)
     }
 }

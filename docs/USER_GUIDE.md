@@ -180,6 +180,55 @@ envtools group delete java-dev
 
 ---
 
+## Hosts 域名映射
+
+### 创建 Hosts 组
+
+```bash
+envtools group create local-dns --kind hosts -d "本地开发域名"
+```
+
+### 管理映射条目
+
+```bash
+envtools hosts add local-dns 127.0.0.1 api.local
+envtools hosts add local-dns 127.0.0.1 db.local
+envtools hosts remove local-dns db.local
+```
+
+### 同步到系统
+
+```bash
+envtools enable local-dns
+envtools hosts sync  # 需要管理员权限
+```
+
+---
+
+## Profile 场景管理
+
+### 创建场景
+
+```bash
+envtools profile create fullstack -d "全栈开发" -g java-dev,local-dns
+```
+
+### 激活/停用场景
+
+```bash
+envtools profile activate fullstack    # 启用所有关联组
+envtools profile deactivate fullstack  # 禁用所有关联组
+```
+
+### 查看场景
+
+```bash
+envtools profile list
+envtools profile show fullstack
+```
+
+---
+
 ## 配置文件
 
 位置: `~/.envtools/config.toml`
@@ -187,6 +236,7 @@ envtools group delete java-dev
 ```toml
 [[groups]]
 name = "java-dev"
+kind = "env"
 description = "Java 17 开发环境"
 active = true
 priority = 10
@@ -196,8 +246,19 @@ key = "JAVA_HOME"
 value = "/usr/lib/jvm/java-17"
 path_mode = "override"
 
-[[groups.variables]]
-key = "PATH"
-value = "/usr/lib/jvm/java-17/bin"
-path_mode = "prepend"
+[[groups]]
+name = "local-dns"
+kind = "hosts"
+description = "本地开发域名"
+active = true
+priority = 0
+
+[[groups.hosts_entries]]
+ip = "127.0.0.1"
+hostname = "api.local"
+
+[[profiles]]
+name = "fullstack"
+description = "全栈开发"
+groups = ["java-dev", "local-dns"]
 ```

@@ -1,0 +1,43 @@
+---
+description: 
+alwaysApply: true
+---
+
+# 性能规范
+
+## 内存分配
+
+1. **优先借用** — 函数参数优先 `&str` / `&[T]`，仅在需要所有权时接收 `String` / `Vec<T>`
+2. **避免无谓 clone** — 如果数据只是传递而非长期持有，使用引用或 `Cow<'_, str>`
+3. **预分配容量** — 已知大小时使用 `Vec::with_capacity(n)` / `HashMap::with_capacity(n)`
+
+```rust
+// 避免
+let keys: Vec<String> = items.iter().map(|i| i.key().to_string()).collect();
+
+// 优先
+let mut keys = Vec::with_capacity(items.len());
+keys.extend(items.iter().map(|i| i.key().to_string()));
+```
+
+## 迭代与集合
+
+1. **惰性迭代** — 优先链式 iterator，避免中间 `collect()` 再遍历
+2. **查找用 HashMap/HashSet** — O(1) 查找替代 `Vec::iter().find()`（元素 > 16 时）
+3. **排序稳定性** — 不需要稳定排序时用 `sort_unstable_by_key`（更少分配）
+
+## I/O 性能
+
+1. **批量操作** — 多次写入同一文件时，构建完整内容后一次写入
+2. **缓冲读写** — 大文件使用 `BufReader` / `BufWriter`
+3. **减少序列化往返** — Repository 操作尽量批量化，避免每次操作都 load → parse → serialize → write
+
+## 编译性能
+
+1. **最小化 feature flags** — 仅启用必要 features（如 `chrono` 只启用 `std, clock`）
+2. **dev 构建关闭 LTO** — `[profile.release]` 才启用 `lto = "fat"`（已配置）
+3. **增量编译友好** — 避免过大的泛型函数和 proc-macro 滥用
+
+## 性能敏感场景基准测试
+
+对热路径（如 `GroupPolicy::resolve`）添加 `#[bench]` 或 criterion 基准测试，确保优化有数据支撑。

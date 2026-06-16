@@ -4,9 +4,11 @@ import { useI18n, t } from "../i18n";
 interface GroupInfo {
   name: string;
   description: string;
+  kind: string;
   active: boolean;
   priority: number;
   variable_count: number;
+  hosts_count: number;
 }
 
 interface Props {
@@ -38,6 +40,7 @@ export const GroupList = memo(function GroupList({ groups, selectedGroup, onSele
     <div className="py-2">
       {groups.map((group) => {
         const isSelected = selectedGroup === group.name;
+        const isHosts = group.kind === "hosts";
         return (
           <div
             key={group.name}
@@ -49,12 +52,21 @@ export const GroupList = memo(function GroupList({ groups, selectedGroup, onSele
             }`}
           >
             <div className="flex items-center justify-between">
-              <span className={`font-medium text-sm truncate ${
-                isSelected ? "text-indigo-700 dark:text-indigo-300" : "text-slate-700 dark:text-gray-200"
-              }`}>
-                {group.name}
-              </span>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className={`shrink-0 text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                  isHosts
+                    ? "bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400"
+                    : "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                }`}>
+                  {isHosts ? "DNS" : "ENV"}
+                </span>
+                <span className={`font-medium text-sm truncate ${
+                  isSelected ? "text-indigo-700 dark:text-indigo-300" : "text-slate-700 dark:text-gray-200"
+                }`}>
+                  {group.name}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   onClick={(e) => { e.stopPropagation(); onToggle(group.name, group.active); }}
                   className={`relative w-8 h-[18px] rounded-full transition-colors duration-200 ${
@@ -83,7 +95,9 @@ export const GroupList = memo(function GroupList({ groups, selectedGroup, onSele
             </div>
             <div className="flex items-center gap-2 mt-1">
               <span className="text-[11px] text-slate-400 dark:text-gray-500">
-                {t(messages.vars_count, { n: group.variable_count })}
+                {isHosts
+                  ? t(messages.hosts_count, { n: group.hosts_count })
+                  : t(messages.vars_count, { n: group.variable_count })}
               </span>
               {group.priority > 0 && (
                 <span className="text-[11px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-gray-700 text-slate-400 dark:text-gray-500">

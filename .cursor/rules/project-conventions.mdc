@@ -1,0 +1,42 @@
+---
+description: 项目公约 — MIT 开源协议、多语言支持、发布规范
+alwaysApply: true
+---
+
+# 项目公约
+
+## MIT 开源协议
+
+- 所有源文件**不需要**添加文件头 license 注释（Cargo.toml 已声明 `license = "MIT"`）
+- 新增 crate 必须在 `Cargo.toml` 中继承 workspace license：`license.workspace = true`
+- 引入第三方依赖前，确认其协议与 MIT 兼容（MIT / Apache-2.0 / BSD 均可；GPL **不可**）
+- 仓库根目录维护 `LICENSE` 文件
+
+## 多语言支持 (i18n)
+
+1. **用户可见字符串**（CLI 输出、错误提示、GUI 文案）禁止硬编码，使用统一的消息常量或 i18n key
+2. 错误消息使用结构化枚举携带上下文，展示层负责翻译渲染
+3. Domain 层的错误枚举是语言无关的，仅携带语义信息
+
+```rust
+// Domain 层 — 语义化错误，不含用户文案
+#[derive(Debug, thiserror::Error)]
+pub enum DomainError {
+    #[error("group not found: {0}")]
+    GroupNotFound(String),
+}
+
+// CLI 展示层 — 负责面向用户的本地化消息
+fn render_error(e: &DomainError, locale: &str) -> String {
+    match (e, locale) {
+        (DomainError::GroupNotFound(n), "zh") => format!("找不到分组：{n}"),
+        (DomainError::GroupNotFound(n), _) => format!("Group not found: {n}"),
+    }
+}
+```
+
+## 发布规范
+
+- 版本号遵循 SemVer，workspace 统一管理
+- Release 构建启用 `lto = "fat"` + `strip = true`（已配置）
+- 发布产物覆盖 6 个平台目标（见 cross-platform 规则）

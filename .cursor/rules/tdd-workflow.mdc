@@ -1,0 +1,46 @@
+---
+description: TDD 驱动开发工作流，Red-Green-Refactor 循环
+alwaysApply: true
+---
+
+# TDD 工作流
+
+所有功能开发和 Bug 修复必须遵循 Red-Green-Refactor 循环。
+
+## 流程
+
+1. **Red** — 先写一个会失败的测试，明确期望行为
+2. **Green** — 写刚好让测试通过的最少代码
+3. **Refactor** — 消除重复、改善命名、优化结构，保持测试绿色
+
+## 测试组织
+
+| 层 | 测试位置 | 类型 |
+|---|---|---|
+| Domain | `crates/domain/tests/*_test.rs` | 单元测试 + proptest 属性测试 |
+| Application | `crates/application/src/tests.rs` | 用例测试（mockall mock Repository） |
+| Infrastructure | `crates/infrastructure/tests/*_test.rs` | 集成测试（tempfile 临时目录） |
+| CLI | `crates/cli/tests/cli_test.rs` | 端到端测试（assert_cmd） |
+
+## 规范
+
+- **测试命名**：`test_<行为描述>_<场景>` 如 `test_create_group_with_duplicate_name_returns_error`
+- **Arrange-Act-Assert** 结构，用空行分隔三个阶段
+- Domain 测试**禁止** mock — 直接测试领域逻辑
+- Application 测试**必须** mock Repository/Port — 隔离外部依赖
+- 每个 Bug 修复**必须**附带回归测试
+- 使用 `proptest` 对 Domain 值对象做属性测试
+
+## 命令
+
+```bash
+# 全量测试
+cargo test --workspace
+
+# 单层测试
+cargo test -p envtools-domain
+cargo test -p envtools-application
+
+# 单个测试
+cargo test -p envtools-domain test_name
+```

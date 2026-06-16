@@ -65,6 +65,16 @@ enum Commands {
         #[command(subcommand)]
         action: ShellAction,
     },
+    /// Manage hosts entries
+    Hosts {
+        #[command(subcommand)]
+        action: HostsAction,
+    },
+    /// Manage profiles (group collections)
+    Profile {
+        #[command(subcommand)]
+        action: ProfileAction,
+    },
     /// Export configuration to JSON file
     Export {
         /// Output file path (default: stdout)
@@ -93,6 +103,9 @@ enum GroupAction {
         name: String,
         #[arg(short, long, default_value = "")]
         description: String,
+        /// Group kind: env or hosts
+        #[arg(short, long, default_value = "env")]
+        kind: String,
         #[arg(short, long, default_value_t = 0)]
         priority: u32,
     },
@@ -100,6 +113,43 @@ enum GroupAction {
     Delete { name: String },
     /// Show group details
     Show { name: String },
+}
+
+#[derive(Subcommand)]
+enum HostsAction {
+    /// Add a hosts entry to a group
+    Add {
+        group: String,
+        ip: String,
+        hostname: String,
+    },
+    /// Remove a hosts entry from a group
+    Remove { group: String, hostname: String },
+    /// Sync active hosts groups to system hosts file
+    Sync,
+}
+
+#[derive(Subcommand)]
+enum ProfileAction {
+    /// List all profiles
+    List,
+    /// Create a new profile
+    Create {
+        name: String,
+        #[arg(short, long, default_value = "")]
+        description: String,
+        /// Comma-separated group names
+        #[arg(short, long, value_delimiter = ',')]
+        groups: Vec<String>,
+    },
+    /// Delete a profile
+    Delete { name: String },
+    /// Show profile details
+    Show { name: String },
+    /// Activate all groups in a profile
+    Activate { name: String },
+    /// Deactivate all groups in a profile
+    Deactivate { name: String },
 }
 
 #[derive(Subcommand)]
@@ -143,8 +193,9 @@ fn main() {
             GroupAction::Create {
                 name,
                 description,
+                kind,
                 priority,
-            } => commands::group_create(&repo, &name, &description, priority),
+            } => commands::group_create(&repo, &name, &description, &kind, priority),
             GroupAction::Delete { name } => commands::group_delete(&repo, &name),
             GroupAction::Show { name } => commands::group_show(&repo, &name),
         },
@@ -155,6 +206,33 @@ fn main() {
         Commands::Status => commands::status(&repo),
         Commands::Shell { action } => match action {
             ShellAction::Init { shell_type } => commands::shell_init(&config_dir, &shell_type),
+        },
+        Commands::Hosts { action } => match action {
+            HostsAction::Add {
+                group,
+                ip,
+                hostname,
+            } => commands::hosts_add(&repo, &group, &ip, &hostname),
+            HostsAction::Remove { group, hostname } => {
+                commands::hosts_remove(&repo, &group, &hostname)
+            }
+            HostsAction::Sync => commands::hosts_sync(&repo),
+        },
+        Commands::Profile { action } => match action {
+            ProfileAction::List => commands::profile_list(&repo),
+            ProfileAction::Create {
+                name,
+                description,
+                groups,
+            } => commands::profile_create(&repo, &name, &description, groups),
+            ProfileAction::Delete { name } => commands::profile_delete(&repo, &name),
+            ProfileAction::Show { name } => commands::profile_show(&repo, &name),
+            ProfileAction::Activate { name } => {
+                commands::profile_activate(&repo, &state_writer, &name)
+            }
+            ProfileAction::Deactivate { name } => {
+                commands::profile_deactivate(&repo, &state_writer, &name)
+            }
         },
         Commands::Export { output, groups } => {
             let filter = if groups.is_empty() {

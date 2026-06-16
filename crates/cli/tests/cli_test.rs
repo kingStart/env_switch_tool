@@ -50,7 +50,7 @@ fn full_workflow_create_set_enable_status() {
         .args(["group", "create", "java", "-d", "Java 17", "-p", "10"])
         .assert()
         .success()
-        .stdout(predicate::str::contains("Created group: java"));
+        .stdout(predicate::str::contains("Created env group: java"));
 
     // Set variables
     envtools_cmd(&config_dir)

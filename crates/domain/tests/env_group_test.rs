@@ -1,7 +1,10 @@
 use envtools_domain::event::DomainEvent;
-use envtools_domain::model::env_group::EnvGroup;
 use envtools_domain::model::env_variable::EnvVariable;
+use envtools_domain::model::group_kind::GroupKind;
+use envtools_domain::model::managed_group::ManagedGroup;
 use envtools_domain::model::priority::Priority;
+
+type EnvGroup = ManagedGroup;
 
 #[test]
 fn new_group_is_inactive_and_emits_created_event() {
@@ -115,7 +118,9 @@ fn from_state_does_not_emit_events() {
     let mut group = EnvGroup::from_state(
         "restored".to_string(),
         "desc".to_string(),
+        GroupKind::Env,
         vec![var],
+        Vec::new(),
         true,
         Priority::new(5),
     );

@@ -1,12 +1,14 @@
 use serde::Serialize;
 
-use envtools_application::dto::{AddVariableRequest, CreateGroupRequest};
+use envtools_application::dto::{AddHostsEntryRequest, AddVariableRequest, CreateGroupRequest};
 use envtools_application::use_case::disable_group::DisableGroupUseCase;
 use envtools_application::use_case::enable_group::EnableGroupUseCase;
 use envtools_application::use_case::export_import::{ExportData, ExportImportUseCase};
 use envtools_application::use_case::manage_group::ManageGroupUseCase;
+use envtools_application::use_case::manage_profile::ManageProfileUseCase;
 use envtools_domain::model::env_variable::PathMode;
-use envtools_domain::repository::GroupRepository;
+use envtools_domain::model::group_kind::GroupKind;
+use envtools_domain::repository::{GroupRepository, ProfileRepository};
 use envtools_domain::service::group_policy::GroupPolicy;
 use envtools_infrastructure::{FileStateWriter, TomlGroupRepository};
 
@@ -25,18 +27,22 @@ fn writer() -> FileStateWriter {
 pub struct GroupInfo {
     pub name: String,
     pub description: String,
+    pub kind: String,
     pub active: bool,
     pub priority: u32,
     pub variable_count: usize,
+    pub hosts_count: usize,
 }
 
 #[derive(Serialize)]
 pub struct GroupDetail {
     pub name: String,
     pub description: String,
+    pub kind: String,
     pub active: bool,
     pub priority: u32,
     pub variables: Vec<VariableInfo>,
+    pub hosts_entries: Vec<HostsEntryInfo>,
 }
 
 #[derive(Serialize)]
@@ -44,6 +50,19 @@ pub struct VariableInfo {
     pub key: String,
     pub value: String,
     pub path_mode: String,
+}
+
+#[derive(Serialize)]
+pub struct HostsEntryInfo {
+    pub ip: String,
+    pub hostname: String,
+}
+
+#[derive(Serialize)]
+pub struct ProfileInfo {
+    pub name: String,
+    pub description: String,
+    pub group_names: Vec<String>,
 }
 
 #[derive(Serialize)]
@@ -62,9 +81,11 @@ pub fn get_groups() -> Result<Vec<GroupInfo>, String> {
         .map(|g| GroupInfo {
             name: g.name,
             description: g.description,
+            kind: g.kind.to_string(),
             active: g.active,
             priority: g.priority,
             variable_count: g.variable_count,
+            hosts_count: g.hosts_count,
         })
         .collect())
 }
@@ -77,6 +98,7 @@ pub fn get_group_detail(name: String) -> Result<GroupDetail, String> {
     Ok(GroupDetail {
         name: detail.name,
         description: detail.description,
+        kind: detail.kind.to_string(),
         active: detail.active,
         priority: detail.priority,
         variables: detail
@@ -92,16 +114,30 @@ pub fn get_group_detail(name: String) -> Result<GroupDetail, String> {
                 },
             })
             .collect(),
+        hosts_entries: detail
+            .hosts_entries
+            .into_iter()
+            .map(|e| HostsEntryInfo {
+                ip: e.ip,
+                hostname: e.hostname,
+            })
+            .collect(),
     })
 }
 
 #[tauri::command]
-pub fn create_group(name: String, description: String, priority: u32) -> Result<(), String> {
+pub fn create_group(
+    name: String,
+    description: String,
+    kind: String,
+    priority: u32,
+) -> Result<(), String> {
     let r = repo();
     let uc = ManageGroupUseCase::new(&r);
     uc.create_group(CreateGroupRequest {
         name,
         description,
+        kind: GroupKind::parse(&kind),
         priority,
     })
     .map_err(|e| e.to_string())
@@ -161,6 +197,100 @@ pub fn remove_variable(group_name: String, key: String) -> Result<(), String> {
     uc.remove_variable(&group_name, &key)
         .map_err(|e| e.to_string())?;
     sync_active_env(&r)
+}
+
+#[tauri::command]
+pub fn add_hosts_entry(group_name: String, ip: String, hostname: String) -> Result<(), String> {
+    let r = repo();
+    let uc = ManageGroupUseCase::new(&r);
+    uc.add_hosts_entry(AddHostsEntryRequest {
+        group_name,
+        ip,
+        hostname,
+    })
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn remove_hosts_entry(group_name: String, hostname: String) -> Result<(), String> {
+    let r = repo();
+    let uc = ManageGroupUseCase::new(&r);
+    uc.remove_hosts_entry(&group_name, &hostname)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn sync_hosts() -> Result<(), String> {
+    use envtools_application::port::HostsFileWriter;
+    use envtools_infrastructure::SystemHostsFileWriter;
+
+    let r = repo();
+    let active_groups = r.find_active().map_err(|e| e.to_string())?;
+    let hosts_entries: Vec<_> = active_groups
+        .iter()
+        .filter(|g| g.kind() == GroupKind::Hosts)
+        .flat_map(|g| g.hosts_entries().iter().cloned())
+        .collect();
+
+    let hw = SystemHostsFileWriter::new();
+    if hosts_entries.is_empty() {
+        hw.clear_managed().map_err(|e| e.to_string())
+    } else {
+        hw.apply_hosts(&hosts_entries).map_err(|e| e.to_string())
+    }
+}
+
+// --- Profile commands ---
+
+#[tauri::command]
+pub fn get_profiles() -> Result<Vec<ProfileInfo>, String> {
+    let r = repo();
+    let profiles = ProfileRepository::find_all(&r).map_err(|e| e.to_string())?;
+    Ok(profiles
+        .into_iter()
+        .map(|p| ProfileInfo {
+            name: p.name().to_string(),
+            description: p.description().to_string(),
+            group_names: p.group_names().to_vec(),
+        })
+        .collect())
+}
+
+#[tauri::command]
+pub fn create_profile(
+    name: String,
+    description: String,
+    group_names: Vec<String>,
+) -> Result<(), String> {
+    let r = repo();
+    let w = writer();
+    let uc = ManageProfileUseCase::new(&r, &r, &w);
+    uc.create(&name, &description, group_names)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn delete_profile(name: String) -> Result<(), String> {
+    let r = repo();
+    let w = writer();
+    let uc = ManageProfileUseCase::new(&r, &r, &w);
+    uc.delete(&name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn activate_profile(name: String) -> Result<(), String> {
+    let r = repo();
+    let w = writer();
+    let uc = ManageProfileUseCase::new(&r, &r, &w);
+    uc.activate(&name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn deactivate_profile(name: String) -> Result<(), String> {
+    let r = repo();
+    let w = writer();
+    let uc = ManageProfileUseCase::new(&r, &r, &w);
+    uc.deactivate(&name).map_err(|e| e.to_string())
 }
 
 fn sync_active_env(repo: &dyn GroupRepository) -> Result<(), String> {
