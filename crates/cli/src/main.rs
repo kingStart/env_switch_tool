@@ -24,7 +24,7 @@ struct Cli {
     config_dir: Option<PathBuf>,
 
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
@@ -113,13 +113,30 @@ enum ShellAction {
 
 fn main() {
     let cli = Cli::parse();
+
+    let command = match cli.command {
+        Some(cmd) => cmd,
+        None => {
+            use clap::CommandFactory;
+            Cli::command().print_help().ok();
+            println!();
+            #[cfg(windows)]
+            {
+                use std::io::{self, Read};
+                eprintln!("\nPress Enter to exit...");
+                let _ = io::stdin().read(&mut [0u8]);
+            }
+            return;
+        }
+    };
+
     let config_dir = cli.config_dir.unwrap_or_else(default_config_dir);
     let config_path = config_dir.join("config.toml");
 
     let repo = TomlGroupRepository::new(&config_path);
     let state_writer = FileStateWriter::new(&config_dir);
 
-    let result = match cli.command {
+    let result = match command {
         Commands::Init => commands::init(&config_dir, &repo),
         Commands::Group { action } => match action {
             GroupAction::List => commands::group_list(&repo),

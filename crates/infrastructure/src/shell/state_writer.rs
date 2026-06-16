@@ -5,6 +5,8 @@ use envtools_application::port::StateFileWriter;
 use envtools_domain::error::DomainError;
 use envtools_domain::service::group_policy::ResolvedEnvironment;
 
+const MANAGED_KEYS_REG: &str = "__ENVTOOLS_MANAGED_KEYS";
+
 pub struct FileStateWriter {
     base_dir: PathBuf,
 }
@@ -93,5 +95,66 @@ impl StateFileWriter for FileStateWriter {
         }
 
         self.write_file("active.fish", &lines.join("\n"))
+    }
+
+    #[cfg(windows)]
+    fn write_system_env(&self, resolved: &ResolvedEnvironment) -> Result<(), DomainError> {
+        use winreg::enums::*;
+        use winreg::RegKey;
+
+        let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+        let (env_key, _) = hkcu
+            .create_subkey("Environment")
+            .map_err(|e| DomainError::GroupNotFound(format!("registry open failed: {e}")))?;
+
+        // Read previously managed keys and remove them
+        if let Ok(old_keys) = env_key.get_value::<String, _>(MANAGED_KEYS_REG) {
+            for key in old_keys.split(',').filter(|k| !k.is_empty()) {
+                let _ = env_key.delete_value(key);
+            }
+        }
+
+        if resolved.managed_keys.is_empty() {
+            let _ = env_key.delete_value(MANAGED_KEYS_REG);
+        } else {
+            // Write new managed keys tracker
+            let keys_csv = resolved.managed_keys.join(",");
+            env_key
+                .set_value(MANAGED_KEYS_REG, &keys_csv)
+                .map_err(|e| {
+                    DomainError::GroupNotFound(format!("registry write failed: {e}"))
+                })?;
+
+            // Write each variable
+            for (key, value) in &resolved.variables {
+                env_key.set_value(key.as_str(), value).map_err(|e| {
+                    DomainError::GroupNotFound(format!("registry set {key} failed: {e}"))
+                })?;
+            }
+        }
+
+        // Broadcast WM_SETTINGCHANGE so new processes pick up the changes
+        broadcast_env_change();
+
+        Ok(())
+    }
+}
+
+#[cfg(windows)]
+fn broadcast_env_change() {
+    use windows::Win32::Foundation::*;
+    use windows::Win32::UI::WindowsAndMessaging::*;
+    use windows::core::*;
+
+    unsafe {
+        let _ = SendMessageTimeoutW(
+            HWND_BROADCAST,
+            WM_SETTINGCHANGE,
+            WPARAM(0),
+            LPARAM(w!("Environment").as_ptr() as isize),
+            SMTO_ABORTIFHUNG,
+            5000,
+            None,
+        );
     }
 }

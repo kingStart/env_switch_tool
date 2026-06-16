@@ -1,5 +1,24 @@
+# Rust build outputs
 /target
+src-tauri/target/
 **/*.rs.bk
 *.pdb
+
+# Node
 node_modules/
+
+# Frontend build output
 src/dist/
+dist/
+
+# Tauri sidecar binaries (built by CI, not source)
+src-tauri/binaries/envtools-*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp

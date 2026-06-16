@@ -65,7 +65,7 @@ fn auto_inject_hooks(_config_dir: &Path) -> Vec<std::path::PathBuf> {
         injected.push(fish_config);
     }
 
-    if let Some(ps_profile) = get_powershell_profile() {
+    for ps_profile in get_powershell_profiles() {
         if inject_hook_to_file(&ps_profile, "pwsh").is_ok() {
             injected.push(ps_profile);
         }
@@ -86,15 +86,18 @@ fn inject_hook_to_file(profile_path: &Path, shell_type: &str) -> Result<(), std:
         return Ok(());
     }
 
-    let hook_line = match shell_type {
+    let config_dir = dirs::home_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+        .join(".envtools");
+
+    let hook_body = match shell_type {
+        "pwsh" => generate_powershell_hook(&config_dir),
         "fish" => "envtools shell init fish | source".to_string(),
-        "pwsh" => "envtools shell init pwsh | Invoke-Expression".to_string(),
         _ => format!("eval \"$(envtools shell init {shell_type})\""),
     };
 
-    let block = format!("\n{HOOK_MARKER}\n{hook_line}\n{HOOK_MARKER_END}\n");
+    let block = format!("\n{HOOK_MARKER}\n{hook_body}\n{HOOK_MARKER_END}\n");
 
-    // Ensure parent dir exists
     if let Some(parent) = profile_path.parent() {
         fs::create_dir_all(parent)?;
     }
@@ -104,39 +107,36 @@ fn inject_hook_to_file(profile_path: &Path, shell_type: &str) -> Result<(), std:
     fs::write(profile_path, content)
 }
 
-fn get_powershell_profile() -> Option<std::path::PathBuf> {
-    // Windows: Documents\PowerShell\Microsoft.PowerShell_profile.ps1
-    // or Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1
+fn get_powershell_profiles() -> Vec<std::path::PathBuf> {
+    let mut profiles = Vec::new();
     if cfg!(windows) {
         if let Some(home) = dirs::home_dir() {
-            let ps_core = home
-                .join("Documents")
+            let docs = home.join("Documents");
+            // PowerShell Core (7+)
+            let ps_core = docs
                 .join("PowerShell")
                 .join("Microsoft.PowerShell_profile.ps1");
-            if ps_core.parent().map(|p| p.exists()).unwrap_or(false) {
-                return Some(ps_core);
+            if fs::create_dir_all(ps_core.parent().unwrap()).is_ok() {
+                profiles.push(ps_core);
             }
-            let ps_legacy = home
-                .join("Documents")
+            // Windows PowerShell (5.x)
+            let ps_legacy = docs
                 .join("WindowsPowerShell")
                 .join("Microsoft.PowerShell_profile.ps1");
-            if ps_legacy.parent().map(|p| p.exists()).unwrap_or(false) {
-                return Some(ps_legacy);
+            if fs::create_dir_all(ps_legacy.parent().unwrap()).is_ok() {
+                profiles.push(ps_legacy);
             }
         }
-    } else {
-        // Unix: ~/.config/powershell/Microsoft.PowerShell_profile.ps1
-        if let Some(home) = dirs::home_dir() {
-            let ps_unix = home
-                .join(".config")
-                .join("powershell")
-                .join("Microsoft.PowerShell_profile.ps1");
-            if ps_unix.parent().map(|p| p.exists()).unwrap_or(false) {
-                return Some(ps_unix);
-            }
+    } else if let Some(home) = dirs::home_dir() {
+        let ps_unix = home
+            .join(".config")
+            .join("powershell")
+            .join("Microsoft.PowerShell_profile.ps1");
+        if ps_unix.parent().map(|p| p.exists()).unwrap_or(false) {
+            profiles.push(ps_unix);
         }
     }
-    None
+    profiles
 }
 
 pub fn group_list(repo: &dyn GroupRepository) -> Result<(), DomainError> {

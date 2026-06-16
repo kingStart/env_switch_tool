@@ -145,12 +145,13 @@ pub fn set_variable(
         _ => PathMode::Override,
     };
     uc.add_variable(AddVariableRequest {
-        group_name,
+        group_name: group_name.clone(),
         key,
         value,
         path_mode: mode,
     })
-    .map_err(|e| e.to_string())
+    .map_err(|e| e.to_string())?;
+    sync_if_active(&r, &group_name)
 }
 
 #[tauri::command]
@@ -158,7 +159,21 @@ pub fn remove_variable(group_name: String, key: String) -> Result<(), String> {
     let r = repo();
     let uc = ManageGroupUseCase::new(&r);
     uc.remove_variable(&group_name, &key)
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    sync_if_active(&r, &group_name)
+}
+
+fn sync_if_active(repo: &dyn GroupRepository, group_name: &str) -> Result<(), String> {
+    if let Ok(Some(group)) = repo.find_by_name(group_name) {
+        if group.is_active() {
+            let w = writer();
+            use envtools_application::use_case::sync_environment::SyncEnvironmentUseCase;
+            SyncEnvironmentUseCase::new(repo, &w)
+                .execute()
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]

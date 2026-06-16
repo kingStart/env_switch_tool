@@ -25,6 +25,7 @@ impl<'a> SyncEnvironmentUseCase<'a> {
         self.state_writer.write_bash(&resolved)?;
         self.state_writer.write_powershell(&resolved)?;
         self.state_writer.write_fish(&resolved)?;
+        self.state_writer.write_system_env(&resolved)?;
 
         Ok(())
     }
