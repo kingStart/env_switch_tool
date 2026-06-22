@@ -166,7 +166,7 @@ jobs:
 
       # ── Upload installer artifacts ──
       - name: Upload installer artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: installer-${{ matrix.platform }}-${{ matrix.arch }}
           path: |
@@ -180,7 +180,7 @@ jobs:
           retention-days: 30
 
       - name: Upload CLI artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cli-${{ matrix.platform }}-${{ matrix.arch }}
           path: |
